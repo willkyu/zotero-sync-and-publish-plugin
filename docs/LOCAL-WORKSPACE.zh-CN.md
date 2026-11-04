@@ -69,7 +69,47 @@
 - Markdown frontmatter 的 `$itemKey` 能唯一指向子笔记时恢复绑定；
 - 两边都没有时创建子笔记、应用所选模板、导出、绑定后再打开；
 - 多笔记/多文件歧义会停止，不按标题猜测；
-- 正在 Zotero 编辑器中打开的笔记会延期，不强制关闭。
+- 手动打开会先保存当前编辑内容再协调；后台自动同步在可能覆盖仍打开的笔记时会延期。
+
+### 阅读笔记模板与创建入口
+
+模板仅用于**新建**主阅读笔记。请选中文献或其 PDF，然后使用插件菜单 **Open Reading Note in Obsidian**；当该文献没有任何子笔记和既有绑定时，插件才会创建 Zotero 子笔记、渲染模板、建立绑定并打开 Obsidian。不要先使用 Zotero 自带的“添加笔记”创建空笔记：插件会把它视为已有笔记并保留原文，不再用模板覆盖。
+
+模板是普通 Markdown 文件，可使用以下变量：
+
+| 变量 | 内容 |
+|---|---|
+| `{{title}}`、`{{shortTitle}}` | 标题、短标题；对应的 `titleYaml`、`shortTitleYaml` 是 YAML 安全字符串 |
+| `{{authors}}`、`{{firstAuthor}}` | 作者列表（分号分隔）、第一作者 |
+| `{{creators}}` | 所有 creator（分号分隔） |
+| `{{authorsYaml}}`、`{{creatorsYaml}}` | 可直接放入 YAML 的 JSON 数组 |
+| `{{date}}`、`{{year}}` | 文献日期、从文献日期提取的年份；另有 `dateYaml` |
+| `{{today}}`、`{{now}}` | 创建当天 `YYYY-MM-DD`、ISO 时间 |
+| `{{tags}}`、`{{collections}}` | 标签、分类列表的文本形式 |
+| `{{tagsYaml}}`、`{{collectionsYaml}}` | 可直接放入 YAML 的 JSON 数组 |
+| `{{itemType}}`、`{{itemKey}}`、`{{noteKey}}` | Zotero 类型、父文献 key、新子笔记 key |
+| `{{citationKey}}`、`{{zoteroURI}}` | Better BibTeX citation key（若存在）、Zotero URI；另有 `citationKeyYaml` |
+| 任意有效 Zotero 字段名 | 例如 `{{DOI}}`、`{{url}}`、`{{abstractNote}}`、`{{publicationTitle}}`、`{{volume}}`、`{{issue}}`、`{{pages}}` |
+
+变量值按 Markdown 原文插入；在 YAML 中建议给普通文本加引号，数组使用 `*Yaml` 变量。未知变量会停止创建并明确报错，不会原样写入笔记。示例：
+
+```markdown
+---
+title: {{titleYaml}}
+authors: {{authorsYaml}}
+year: "{{year}}"
+tags: {{tagsYaml}}
+zotero-key: "{{itemKey}}"
+---
+
+# {{title}}
+
+## 文献摘要
+
+{{abstractNote}}
+
+## 阅读笔记
+```
 
 ## 图片与 PDF
 

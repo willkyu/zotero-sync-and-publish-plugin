@@ -118,6 +118,95 @@ ZoteroGitHubSync.BetterNotes = {
 		return reasons;
 	},
 
+	templateValues(parent, note) {
+		let creators = parent.getCreators?.() || [];
+		let creatorNames = creators.map(creator => creator.name
+			|| [creator.firstName, creator.lastName].filter(Boolean).join(' ')).filter(Boolean);
+		let authorNames = creators.filter(creator => {
+			try { return Zotero.CreatorTypes.getName(creator.creatorTypeID) === 'author'; }
+			catch (e) { return true; }
+		}).map(creator => creator.name
+			|| [creator.firstName, creator.lastName].filter(Boolean).join(' ')).filter(Boolean);
+		if (!authorNames.length) authorNames = creatorNames;
+		let tags = (parent.getTags?.() || []).map(tag => tag.tag).filter(Boolean);
+		let collections = (parent.getCollections?.() || []).map(id => {
+			try { return Zotero.Collections.get(id)?.name || ''; }
+			catch (e) { return ''; }
+		}).filter(Boolean);
+		let field = name => {
+			try { return String(parent.getField?.(name) || ''); }
+			catch (e) { return ''; }
+		};
+		let bibliographicDate = field('date');
+		let extra = field('extra');
+		let citationKey = field('citationKey') || extra.match(/^Citation Key:\s*(.+)$/mi)?.[1]?.trim() || '';
+		let today = new Date().toISOString();
+		let title = parent.getDisplayTitle?.() || field('title');
+		let shortTitle = field('shortTitle');
+		return {
+			title,
+			titleYaml: JSON.stringify(title),
+			shortTitle,
+			shortTitleYaml: JSON.stringify(shortTitle),
+			creators: creatorNames.join('; '),
+			authors: authorNames.join('; '),
+			firstAuthor: authorNames[0] || '',
+			creatorsYaml: JSON.stringify(creatorNames),
+			authorsYaml: JSON.stringify(authorNames),
+			tags: tags.join(', '),
+			tagsYaml: JSON.stringify(tags),
+			collections: collections.join('; '),
+			collectionsYaml: JSON.stringify(collections),
+			date: bibliographicDate,
+			dateYaml: JSON.stringify(bibliographicDate),
+			year: bibliographicDate.match(/\d{4}/)?.[0] || '',
+			today: today.slice(0, 10),
+			now: today,
+			itemType: parent.itemType || '',
+			itemKey: parent.key || '',
+			noteKey: note?.key || '',
+			citationKey,
+			citationKeyYaml: JSON.stringify(citationKey),
+			zoteroURI: Zotero.URI?.getItemURI?.(parent) || '',
+		};
+	},
+
+	renderTemplate(markdown, parent, note) {
+		let values = this.templateValues(parent, note);
+		let unknown = new Set();
+		let rendered = String(markdown || '').replace(/\{\{\s*([A-Za-z][A-Za-z0-9_-]*)\s*\}\}/g, (match, name) => {
+			if (Object.prototype.hasOwnProperty.call(values, name)) return values[name];
+			try {
+				if (Zotero.ItemFields?.getID?.(name)) return String(parent.getField(name) || '');
+			}
+			catch (e) {}
+			unknown.add(name);
+			return match;
+		});
+		for (let match of rendered.matchAll(/\{\{\s*([^{}\n]+?)\s*\}\}/g)) unknown.add(match[1].trim());
+		if (unknown.size) throw new Error(`Unknown reading-note template variable(s): ${[...unknown].join(', ')}`);
+		return rendered;
+	},
+
+	async applyTemplate(note, parent, templatePath) {
+		let source = await Zotero.File.getContentsAsync(templatePath, 'utf-8');
+		let rendered = this.renderTemplate(source, parent, note);
+		let suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+		let renderedPath = PathUtils.join(PathUtils.parent(templatePath), `.zqws-template-${note.key}-${suffix}.md`);
+		let tmpPath = `${renderedPath}.tmp`;
+		try {
+			await IOUtils.write(renderedPath, new TextEncoder().encode(rendered), { tmpPath });
+			let templateMeta = (await this.api.sync.getMDStatus(renderedPath)).meta;
+			let imported = await this.api.$import.fromMD(renderedPath, { noteId: note.id, ignoreVersion: true });
+			if (!imported) throw new Error('Better Notes did not import the rendered reading-note template.');
+			return templateMeta;
+		}
+		finally {
+			await IOUtils.remove(tmpPath, { ignoreAbsent: true });
+			await IOUtils.remove(renderedPath, { ignoreAbsent: true });
+		}
+	},
+
 	async snapshot(note, absolutePath) {
 		let exists = await IOUtils.exists(absolutePath);
 		let md = exists ? await this.api.sync.getMDStatus(absolutePath) : null;
@@ -469,8 +558,16 @@ ZoteroGitHubSync.BetterNotes = {
 				note.setNote('<div data-schema-version="9"><p></p></div>');
 				await note.saveTx();
 				if (config.noteTemplatePath && await IOUtils.exists(config.noteTemplatePath)) {
-					templateMeta = (await this.api.sync.getMDStatus(config.noteTemplatePath)).meta;
-					await this.api.$import.fromMD(config.noteTemplatePath, { noteId: note.id, ignoreVersion: true });
+					try {
+						templateMeta = await this.applyTemplate(note, parent, config.noteTemplatePath);
+					}
+					catch (e) {
+						// Do not leave a new blank note that would suppress the template
+						// on the next attempt. Keep the failed note recoverable in Trash.
+						note.deleted = true;
+						await note.saveTx();
+						throw e;
+					}
 				}
 			}
 			binding = await this.createBinding(note, parent, config, bindings, templateMeta);

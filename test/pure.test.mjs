@@ -286,6 +286,25 @@ assert.equal(BN.relativePosix('content/papers', 'content/assets/图 1.png'), '..
   assert.deepEqual(events, [['toggle'], ['save', '<p>saved</p>']]);
   assert.equal((await BN.flushNoteEditors(99)), 0, 'only the requested note editor is flushed');
 }
+{
+  globalThis.Zotero = {
+    CreatorTypes: { getName: () => 'author' },
+    ItemFields: { getID: name => name === 'DOI' ? 1 : 0 },
+    Collections: { get: id => ({ name: `Collection ${id}` }) },
+    URI: { getItemURI: item => `zotero://item/${item.key}` },
+  };
+  const parent = {
+    key: 'PARENT01', itemType: 'journalArticle',
+    getDisplayTitle: () => 'A Paper',
+    getCreators: () => [{ firstName: 'Ada', lastName: 'Lovelace', creatorTypeID: 1 }],
+    getTags: () => [{ tag: 'methods' }], getCollections: () => [7],
+    getField: name => ({ date: '2025-06', DOI: '10.1/example', extra: 'Citation Key: lovelace2025' })[name] || '',
+  };
+  const rendered = BN.renderTemplate('# {{title}}\n{{authors}} | {{year}} | {{DOI}} | {{citationKey}} | {{noteKey}}', parent, { key: 'NOTE0001' });
+  assert.equal(rendered, '# A Paper\nAda Lovelace | 2025 | 10.1/example | lovelace2025 | NOTE0001');
+  assert.throws(() => BN.renderTemplate('{{missing}}', parent, { key: 'NOTE0001' }), /Unknown reading-note template variable/);
+  assert.throws(() => BN.renderTemplate('{{date:YYYY-MM-DD}}', parent, { key: 'NOTE0001' }), /date:YYYY-MM-DD/);
+}
 const bindings = W.validateBindings({ bindings: [
   { library: { type: 'user' }, parentKey: 'PARENT01', noteKey: 'NOTE0001', path: 'content/papers/a.md' },
   { library: { type: 'user' }, parentKey: 'PARENT02', noteKey: 'NOTE0001', path: 'content/papers/duplicate.md' },
