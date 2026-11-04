@@ -8,7 +8,7 @@ Updated: 2026-11-04
 - Configurable repository, Git executable, remote, branch, commit scope, papers/assets/Vault/template paths.
 - Local deterministic JSON export, atomic writes, safe managed-file list and conservative three-way import.
 - Empty-library bootstrap by stable keys plus automatic, baseline-backed local deletion propagation.
-- Better Notes 3.3.3 adapter, shared bindings, hash-based direction choice, active-editor deferral and post-call completion checks.
+- Better Notes 3.3.3 adapter, shared bindings, hash-based direction choice, visible-editor flushing/refresh and post-call completion checks.
 - Separate image/PDF policy, image byte hashes, missing-storage repair and same-name update detection.
 - Standard Obsidian `open` URI from context menu and keyboard shortcut; reuse/recover/create behavior.
 - Always-on local Zotero/workspace coordination, separate GitHub startup/interval/change/manual triggers, and queued events during a running operation.

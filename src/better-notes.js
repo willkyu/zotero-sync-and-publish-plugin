@@ -523,6 +523,12 @@ ZoteroGitHubSync.BetterNotes = {
 			};
 		}
 
+		// Zotero's right-hand note pane has no close button and remains a live
+		// editor as long as the item is selected. Visibility alone must therefore
+		// not block background coordination forever. Persist any pending editor
+		// input first; Zotero's item notification then refreshes the live editor
+		// after Better Notes imports the Markdown below.
+		if (this.activeNoteIDs().has(note.id)) await this.flushNoteEditors(note.id);
 		let before = await this.snapshot(note, absolutePath);
 		if (!before.exists) {
 			if (!options.restoreMissingMarkdown) {
@@ -533,7 +539,6 @@ ZoteroGitHubSync.BetterNotes = {
 					warnings: [`${binding.path}: Markdown was deleted${noteChanged ? ' while the Zotero note also changed' : ''}; automatic delete-wins policy will trash the Zotero note.`],
 				};
 			}
-			if (!options.allowVisibleEditor && this.activeNoteIDs().has(note.id)) return { status: 'editing', pending: 1 };
 			await this.exportNote(note, absolutePath);
 		}
 		let imageResult = await this.coordinateImages(binding, note, config);
@@ -552,9 +557,6 @@ ZoteroGitHubSync.BetterNotes = {
 		let mdChanged = before.md5 !== binding.md5;
 		let noteChanged = before.noteMd5 !== binding.noteMd5;
 		if (mdChanged && noteChanged) return { status: 'conflict', pending: 1 };
-		if (!options.allowVisibleEditor && (mdChanged || noteChanged) && this.activeNoteIDs().has(note.id)) {
-			return { status: 'editing', pending: 1 };
-		}
 		let unsafe = (mdChanged || noteChanged) ? this.unsafeMarkdown(before.md?.content || '') : [];
 		if (noteChanged && unsafe.length) {
 			return { status: 'unsupported-markdown', pending: 1, warnings: [`${binding.path}: Zotero changes cannot overwrite external-only ${unsafe.join(', ')}`] };
@@ -824,7 +826,7 @@ ZoteroGitHubSync.BetterNotes = {
 		// A note selected in Zotero is displayed in a live right-hand editor.
 		// Its pending input was flushed above, so that display alone must not
 		// prevent coordination of the Markdown file that is about to be opened.
-		let result = await this.coordinate(binding, config, { allowVisibleEditor: true, restoreMissingMarkdown: true });
+		let result = await this.coordinate(binding, config, { restoreMissingMarkdown: true });
 		if (result.pending) throw new Error(`Reading note is not ready: ${result.status}`);
 		await data.save();
 		let uri = ZoteroGitHubSync.Workspace.obsidianURI(config, absolute);

@@ -26,6 +26,39 @@ const G = ZoteroGitHubSync.LocalGit, API = ZoteroGitHubSync.WorkspaceAPITranspor
   BN.resolveItem = originalResolve;
 }
 {
+  const originals = {
+    resolveItem: BN.resolveItem, activeNoteIDs: BN.activeNoteIDs,
+    flushNoteEditors: BN.flushNoteEditors, snapshot: BN.snapshot,
+    coordinateImages: BN.coordinateImages, coordinateCitationKey: BN.coordinateCitationKey,
+    register: BN.register, resolve: W.resolve, IOUtils: globalThis.IOUtils,
+  };
+  let flushed = 0;
+  const note = { id: 42, key: 'NOTE0001', deleted: false, version: 1, isNote: () => true };
+  try {
+    BN.resolveItem = async (_library, key) => key === 'PARENT01' ? { deleted: false } : note;
+    BN.activeNoteIDs = () => new Set([42]);
+    BN.flushNoteEditors = async id => { assert.equal(id, 42); flushed++; };
+    BN.snapshot = async () => ({ exists: true, md: { content: '# Note', meta: {} }, md5: 'm', noteMd5: 'n' });
+    BN.coordinateImages = async () => ({ pending: [], changed: false });
+    BN.coordinateCitationKey = async () => ({ changed: false });
+    BN.register = () => {};
+    W.resolve = () => 'C:/workspace/content/papers/paper.md';
+    globalThis.IOUtils = { exists: async () => true };
+    const result = await BN.coordinate({
+      library: {}, noteKey: 'NOTE0001', parentKey: 'PARENT01',
+      path: 'content/papers/paper.md', md5: 'm', noteMd5: 'n',
+    }, { includeNoteImagesLocal: false });
+    assert.equal(flushed, 1, 'a visible Zotero note editor is saved before background coordination');
+    assert.equal(result.status, 'up-to-date', 'editor visibility alone does not leave a pending change');
+  }
+  finally {
+    BN.resolveItem = originals.resolveItem; BN.activeNoteIDs = originals.activeNoteIDs;
+    BN.flushNoteEditors = originals.flushNoteEditors; BN.snapshot = originals.snapshot;
+    BN.coordinateImages = originals.coordinateImages; BN.coordinateCitationKey = originals.coordinateCitationKey;
+    BN.register = originals.register; W.resolve = originals.resolve; globalThis.IOUtils = originals.IOUtils;
+  }
+}
+{
   const prefs = ZoteroGitHubSync.Prefs, sync = ZoteroGitHubSync.Sync;
   const originalConfig = prefs.getConfig;
   prefs.getConfig = () => ({ automationPaused: true, syncOnChange: true, changeDelayMinutes: 2 });

@@ -62,7 +62,9 @@ ZoteroGitHubSync.UI = {
 			lines.push(Sync.describeProgress(progress) || get('progress.collecting'), get('toolbar.clickForProgress'));
 		}
 		else if (status === 'attention') {
-			lines.push(get('toolbar.attention', String(Sync.pendingReview || ZoteroGitHubSync.Prefs.get('pendingReview') || '')));
+			let local = Number(ZoteroGitHubSync.Prefs.get('localPendingReview')) || 0;
+			let cloud = Number(ZoteroGitHubSync.Prefs.get('cloudPendingReview')) || 0;
+			lines.push(get('toolbar.attention', String(local + cloud), String(local), String(cloud)));
 		}
 		else {
 			let lastError = ZoteroGitHubSync.Prefs.get('lastError');
