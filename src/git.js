@@ -13,6 +13,77 @@ ZoteroGitHubSync.LocalGit = class LocalGit {
 		this.executable = config.gitExecutable || 'git';
 		this.remote = config.gitRemote || 'origin';
 		this.branch = config.gitBranch || 'main';
+		this._resolvedExecutable = '';
+	}
+
+	/**
+	 * GUI applications do not always inherit the same PATH as a terminal. In
+	 * particular, Zotero may have been started before Git was installed, and
+	 * macOS applications launched from Finder do not read shell startup files.
+	 */
+	static executableCandidates(os, env = {}) {
+		let candidates = [];
+		let add = value => {
+			value = String(value || '').trim().replace(/[\\/]+$/, '');
+			if (value && !candidates.includes(value)) candidates.push(value);
+		};
+		let under = (base, suffix) => {
+			base = String(base || '').trim().replace(/[\\/]+$/, '');
+			if (base) add(`${base}${os === 'WINNT' ? '\\' : '/'}${suffix}`);
+		};
+
+		if (os === 'WINNT') {
+			for (let base of [env.ProgramFiles, env['ProgramFiles(x86)'], 'C:\\Program Files', 'C:\\Program Files (x86)']) {
+				under(base, 'Git\\cmd\\git.exe');
+				under(base, 'Git\\bin\\git.exe');
+			}
+			under(env.LOCALAPPDATA, 'Programs\\Git\\cmd\\git.exe');
+			under(env.USERPROFILE, 'scoop\\apps\\git\\current\\cmd\\git.exe');
+			under(env.ProgramData, 'chocolatey\\bin\\git.exe');
+		}
+		else {
+			// Apple Silicon Homebrew, Intel Homebrew/MacPorts, then system paths.
+			for (let path of ['/opt/homebrew/bin/git', '/usr/local/bin/git', '/opt/local/bin/git', '/usr/bin/git']) add(path);
+		}
+		return candidates;
+	}
+
+	async resolveExecutable(Subprocess) {
+		if (this._resolvedExecutable) return this._resolvedExecutable;
+		let configured = String(this.executable || 'git').trim() || 'git';
+		if (PathUtils.isAbsolute(configured)) {
+			if (!await IOUtils.exists(configured)) {
+				throw new Error(`Configured Git executable does not exist: ${configured}`);
+			}
+			return (this._resolvedExecutable = configured);
+		}
+
+		try {
+			let found = await Subprocess.pathSearch(configured);
+			if (found) return (this._resolvedExecutable = found);
+		}
+		catch (_) {}
+
+		// A non-default command is an explicit override, so do not silently run a
+		// different program when it cannot be found.
+		if (!/^git(?:\.exe)?$/i.test(configured)) {
+			throw new Error(`Git executable not found: ${configured}. Enter its absolute path in the plugin settings.`);
+		}
+		let env = {};
+		for (let name of ['ProgramFiles', 'ProgramFiles(x86)', 'LOCALAPPDATA', 'USERPROFILE', 'ProgramData']) {
+			try { env[name] = Services.env.get(name); }
+			catch (_) { env[name] = ''; }
+		}
+		let os = '';
+		try { os = Services.appinfo.OS; }
+		catch (_) {}
+		for (let candidate of LocalGit.executableCandidates(os, env)) {
+			if (await IOUtils.exists(candidate)) {
+				ZoteroGitHubSync.log(`Using Git executable ${candidate}`);
+				return (this._resolvedExecutable = candidate);
+			}
+		}
+		throw new Error('Git executable not found. Install Git, restart Zotero, or enter the absolute git.exe path in the plugin settings.');
 	}
 
 	static parsePorcelainZ(text) {
@@ -34,10 +105,7 @@ ZoteroGitHubSync.LocalGit = class LocalGit {
 
 	async run(args, { allowFailure = false } = {}) {
 		let { Subprocess } = ChromeUtils.importESModule('resource://gre/modules/Subprocess.sys.mjs');
-		let command = this.executable;
-		if (!PathUtils.isAbsolute(command)) {
-			command = await Subprocess.pathSearch(command);
-		}
+		let command = await this.resolveExecutable(Subprocess);
 		let printable = args.map(a => JSON.stringify(String(a))).join(' ');
 		ZoteroGitHubSync.log(`git ${printable}`);
 		let proc = await Subprocess.call({

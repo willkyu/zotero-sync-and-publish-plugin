@@ -39,6 +39,21 @@ globalThis.ZoteroGitHubSync = { log(){} };
 const source = fileURLToPath(new URL('../src/git.js', import.meta.url));
 vm.runInThisContext(readFileSync(source, 'utf8'));
 
+// Zotero launched from the Windows GUI may not inherit Git's PATH entry.
+// Verify that the production resolver reaches the conventional installation.
+const originalIOUtils = globalThis.IOUtils;
+globalThis.Services = {
+  appinfo: { OS: 'WINNT' },
+  env: { get: name => name === 'ProgramFiles' ? 'C:\\Program Files' : '' },
+};
+globalThis.IOUtils = { exists: async path => path === 'C:\\Program Files\\Git\\cmd\\git.exe' };
+const fallbackClient = new ZoteroGitHubSync.LocalGit({ workspacePath: 'unused', gitExecutable: 'git' });
+assert.equal(
+  await fallbackClient.resolveExecutable({ pathSearch: async () => { throw new Error('not found'); } }),
+  'C:\\Program Files\\Git\\cmd\\git.exe',
+);
+globalThis.IOUtils = originalIOUtils;
+
 const root = await mkdtemp(join(tmpdir(), 'zqws-git-'));
 const remote = join(root, 'remote.git');
 const a = join(root, '电脑 A');

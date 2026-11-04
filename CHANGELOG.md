@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Local Workspace now finds Git in standard Windows, Homebrew, MacPorts, and Unix locations when Zotero's GUI process does not inherit the terminal `PATH`, while retaining the explicit executable override.
+
 ## [1.0.0] — 2026-11-04
 
 ### Added

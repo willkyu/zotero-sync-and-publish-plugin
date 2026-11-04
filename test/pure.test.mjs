@@ -227,6 +227,9 @@ assert.deepEqual(G.parsePorcelainZ(' M content/a.md\0R  zotero/old.json\0zotero/
   { status: ' M', path: 'content/a.md', original: null },
   { status: 'R ', path: 'zotero/old.json', original: 'zotero/new.json' },
 ]);
+assert.ok(G.executableCandidates('WINNT', { ProgramFiles: 'D:\\Apps' }).includes('D:\\Apps\\Git\\cmd\\git.exe'));
+assert.ok(G.executableCandidates('WINNT', { LOCALAPPDATA: 'C:\\Users\\test\\AppData\\Local' }).includes('C:\\Users\\test\\AppData\\Local\\Programs\\Git\\cmd\\git.exe'));
+assert.ok(G.executableCandidates('Darwin').includes('/opt/homebrew/bin/git'));
 assert.deepEqual(BN.unsafeMarkdown('# Fine\n\n- [ ] lossy\n\n![[embed.png]]\n'), ['task lists', 'Obsidian embeds']);
 assert.deepEqual(BN.unsafeMarkdown('```md\n- [ ] code\n![[x]]\n```\n> [!note]\n[[Page]]'), []);
 assert.equal(BN.relativePosix('content/papers', 'content/assets/图 1.png'), '../assets/图 1.png');

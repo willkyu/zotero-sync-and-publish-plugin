@@ -23,7 +23,7 @@
 1. 先在命令行正常克隆 `willkyu/research`，确认 `git pull` 和 `git push` 使用现有凭据可以工作。
 2. 在插件设置把模式改为 **Local Workspace**。
 3. “Research repository root”选择仓库根目录，例如 `C:\Users\willkyu\Documents\.Papers\research`。
-4. Git executable 通常填 `git`；Remote 为 `origin`；Branch 为 `main`。
+4. Git executable 通常填 `git`；插件会先搜索 Zotero 继承的 `PATH`，再自动探测 Windows、Homebrew、MacPorts 和常见 Unix 安装位置。若仍找不到，可填写 `git.exe` 的绝对路径。Remote 为 `origin`；Branch 为 `main`。
 5. 阅读笔记填 `content/papers`，图片填 `content/assets`。
 6. Obsidian Vault path 选择实际 Vault。当前常用结构应选择 `research/content`，Vault 名可以留空自动取目录名。
 7. 可选择 `content/templates/` 下的 Markdown 作为新阅读笔记模板。
@@ -35,7 +35,7 @@
 
 配置逻辑相同，但每台电脑分别选择本机的绝对路径，例如 `/Users/name/research` 和 `/Users/name/research/content`。共享到 Git 的只有相对路径与 Zotero key；绝对路径、基线、Git 凭据均留在本机 Zotero profile。
 
-若 GUI 启动的 Zotero 找不到 Homebrew Git，可把 Git executable 填成 `which git` 返回的绝对路径（Apple Silicon 常见 `/opt/homebrew/bin/git`）。
+若自动探测仍找不到 Git，可把 Git executable 填成 `which git` 返回的绝对路径（Apple Silicon 常见 `/opt/homebrew/bin/git`）。Windows 可在 PowerShell 运行 `(Get-Command git).Source` 获取绝对路径。
 
 ## 从 GitHub API 模式迁移
 
