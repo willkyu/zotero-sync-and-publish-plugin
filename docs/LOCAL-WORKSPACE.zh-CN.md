@@ -121,6 +121,8 @@ zotero-key: "{{itemKey}}"
 
 删除笔记或文献不会自动删除 Markdown/共享图片。删除镜像文件也只会进入待确认；实现不会清空 `zotero/`，也不会删除不在插件管理清单中的文件。
 
+删除一个已绑定的 Zotero 阅读笔记后，后台同步不会复用回收站对象，也不会自动复活笔记；Markdown 与失效绑定会保留。若随后在该父文献上手动选择 **Open Reading Note in Obsidian**，插件会创建新的活动子笔记：已有 Markdown 非空时从其恢复，Markdown 为空时应用当前模板，并把绑定更新为新的 note key。回收站里的旧笔记不会被恢复。
+
 ## 冲突、离线和远端状态
 
 - 同一绑定的 Zotero note 与 Markdown 都偏离共享哈希：保留双方，状态为 conflict。

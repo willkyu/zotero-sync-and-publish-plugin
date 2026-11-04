@@ -265,6 +265,48 @@ ZoteroGitHubSync.BetterNotes = {
 		return true;
 	},
 
+	async recreateDeletedBinding(parent, binding, config) {
+		let note = new Zotero.Item('note');
+		note.libraryID = parent.libraryID;
+		note.parentID = parent.id;
+		note.setNote('<div data-schema-version="9"><p></p></div>');
+		await note.saveTx();
+		let absolutePath = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
+		try {
+			let existing = await IOUtils.exists(absolutePath)
+				? await this.api.sync.getMDStatus(absolutePath) : null;
+			if (String(existing?.content || '').trim()) {
+				let imported = await this.api.$import.fromMD(absolutePath, { noteId: note.id, ignoreVersion: true });
+				if (!imported) throw new Error('Better Notes did not restore the deleted reading note from Markdown.');
+				await this.exportNote(note, absolutePath, existing.meta || {});
+				await this.preserveTemplateBody(absolutePath, existing.content);
+			}
+			else if (config.noteTemplatePath && await IOUtils.exists(config.noteTemplatePath)) {
+				let template = await this.applyTemplate(note, parent, config.noteTemplatePath);
+				await this.exportNote(note, absolutePath, template.meta);
+				await this.preserveTemplateBody(absolutePath, template.content);
+			}
+			else {
+				await this.exportNote(note, absolutePath, existing?.meta || null);
+			}
+			let snapshot = await this.snapshot(note, absolutePath);
+			binding.noteKey = note.key;
+			binding.md5 = snapshot.md5;
+			binding.noteMd5 = snapshot.noteMd5;
+			binding.noteVersion = note.version;
+			binding.images = [];
+			binding.updated = new Date().toISOString();
+			await this.coordinateImages(binding, note, config);
+			this.register(note, absolutePath, snapshot);
+			return note;
+		}
+		catch (e) {
+			note.deleted = true;
+			await note.saveTx();
+			throw e;
+		}
+	},
+
 	async snapshot(note, absolutePath) {
 		let exists = await IOUtils.exists(absolutePath);
 		let md = exists ? await this.api.sync.getMDStatus(absolutePath) : null;
@@ -395,7 +437,7 @@ ZoteroGitHubSync.BetterNotes = {
 	async coordinate(binding, config, options = {}) {
 		let note = await this.resolveItem(binding.library, binding.noteKey);
 		let parent = await this.resolveItem(binding.library, binding.parentKey);
-		if (!note?.isNote?.() || !parent) return { status: 'waiting-identity', pending: 1 };
+		if (!note?.isNote?.() || note.deleted || !parent || parent.deleted) return { status: 'waiting-identity', pending: 1 };
 		let absolutePath = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
 		let imageResult = await this.coordinateImages(binding, note, config);
 		if (imageResult.pending.length) return { status: 'image-conflict', pending: 1, warnings: imageResult.pending };
@@ -484,7 +526,7 @@ ZoteroGitHubSync.BetterNotes = {
 		let knownPaths = new Set(bindings.map(b => b.path.toLowerCase()));
 		let add = async (note, absolutePath) => {
 			let parent = note?.parentItem;
-			if (!note?.isNote?.() || !parent?.isRegularItem?.()) return;
+			if (!note?.isNote?.() || note.deleted || !parent?.isRegularItem?.() || parent.deleted) return;
 			let path;
 			try { path = ZoteroGitHubSync.Workspace.relative(config, absolutePath); }
 			catch (e) { return; }
@@ -578,7 +620,7 @@ ZoteroGitHubSync.BetterNotes = {
 			let noteKey = md.meta?.$itemKey;
 			if (!/^[A-Z0-9]{8}$/.test(noteKey || '')) continue;
 			let note = await Zotero.Items.getByLibraryAndKeyAsync(parent.libraryID, noteKey);
-			if (!note?.isNote?.() || note.parentID !== parent.id) continue;
+			if (!note?.isNote?.() || note.deleted || note.parentID !== parent.id) continue;
 			matches.push({ file, md, note });
 		}
 		if (matches.length > 1) throw new Error('Multiple Markdown files claim notes under this item. Resolve the ambiguity before binding.');
@@ -636,8 +678,14 @@ ZoteroGitHubSync.BetterNotes = {
 			binding = await this.createBinding(note, parent, config, bindings, template);
 			await data.save();
 		}
-		else if (await this.repairEmptyTemplateBinding(note, parent, binding, config)) {
-			await data.save();
+		else {
+			if (!note?.isNote?.() || note.deleted) {
+				note = await this.recreateDeletedBinding(parent, binding, config);
+				await data.save();
+			}
+			else if (await this.repairEmptyTemplateBinding(note, parent, binding, config)) {
+				await data.save();
+			}
 		}
 		await this.flushNoteEditors(note.id);
 		let absolute = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
