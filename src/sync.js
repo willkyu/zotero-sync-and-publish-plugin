@@ -62,7 +62,7 @@ ZoteroGitHubSync.Sync = {
 			this.status = 'attention';
 		}
 		ZoteroGitHubSync.Prefs.observe(
-			['intervalEnabled', 'intervalMinutes', 'syncOnChange', 'changeDelayMinutes', 'syncMode', 'workspacePath', 'automationPaused'],
+			['intervalEnabled', 'intervalMinutes', 'syncOnChange', 'changeDelayMinutes', 'workspaceTransport', 'workspacePath', 'automationPaused'],
 			() => this.updateSchedule()
 		);
 		this.updateSchedule();
@@ -311,11 +311,10 @@ ZoteroGitHubSync.Sync = {
 	/**
 	 * @param {Object} [options]
 	 * @param {String} [options.trigger='manual'] - manual | button | interval | change | startup | zotero-sync
-	 * @param {Zotero.Item[]} [options.items] - Sync only these items
 	 * @param {Boolean} [options.silent] - Don't open a progress window
 	 * @return {Promise<Object>} { status, added, updated, deleted, commit, warnings }
 	 */
-	async syncNow({ trigger = 'manual', items = null, silent = false, forceReview = false } = {}) {
+	async syncNow({ trigger = 'manual', silent = false } = {}) {
 		if (this._running) {
 			if (!silent) {
 				// Already visible on the toolbar button; reopen the window rather
@@ -329,95 +328,9 @@ ZoteroGitHubSync.Sync = {
 		if (config.automationPaused && silent) {
 			return { status: 'paused' };
 		}
-		if (config.syncMode === 'local-workspace') {
-			return this._syncLocalWorkspace({ trigger, silent });
-		}
-		let token = await ZoteroGitHubSync.Prefs.getToken();
-		if (!config.owner || !config.repo || !token) {
-			if (!silent) {
-				this._notify(ZoteroGitHubSync.getString('error.notConfigured'), { error: true });
-			}
-			return { status: 'not-configured' };
-		}
-		if (items && !items.length) {
-			if (!silent) {
-				this._notify(ZoteroGitHubSync.getString('error.noItems'), { error: true });
-			}
-			return { status: 'no-items' };
-		}
-
-		this._running = true;
-		this._cancel = new ZoteroGitHubSync.CancelToken();
-		this.progress = null;
-		this._setStatus('syncing');
-		this._updateProgress({ phase: 'collecting' });
-		if (!silent) {
-			this._openProgressWindow();
-		}
-
-		try {
-			let result = await this._runSyncWithRetry({ config, token, items, trigger, silent, forceReview });
-			ZoteroGitHubSync.Prefs.set('lastSync', ZoteroGitHubSync.Utils.isoDate());
-			ZoteroGitHubSync.Prefs.set('lastError', '');
-			ZoteroGitHubSync.Prefs.set('lastWarnings', this._formatWarnings(result.warnings));
-			if (result.warnings?.length) {
-				result.warnings.forEach(w => ZoteroGitHubSync.warn(w));
-			}
-			if (result.commit) {
-				ZoteroGitHubSync.Prefs.set('lastCommit', result.commit);
-			}
-			this.lastResult = result;
-			this.progress = null;
-			this.pendingReview = result.pending || 0;
-			ZoteroGitHubSync.Prefs.set('pendingReview', this.pendingReview);
-			this._setStatus(this.pendingReview ? 'attention' : 'idle');
-
-			let summary = result.status === 'up-to-date'
-				? ZoteroGitHubSync.getString('progress.upToDate')
-				: ZoteroGitHubSync.getString(
-					'progress.done',
-					String(result.added + result.updated + result.deleted),
-					`${config.owner}/${config.repo}`
-				);
-			if (result.pending) {
-				summary += `\n${ZoteroGitHubSync.getString('review.pendingSummary', String(result.pending))}`;
-			}
-			else if (result.warnings?.length) {
-				summary += `\n${ZoteroGitHubSync.getString('progress.warnings', String(result.warnings.length))}`;
-			}
-			if (silent && result.pending && !this._pendingNotified) {
-				// Say it once, not after every background sync
-				this._pendingNotified = true;
-				this._notify(ZoteroGitHubSync.getString('review.pendingSummary', String(result.pending)));
-			}
-			if (!result.pending) {
-				this._pendingNotified = false;
-			}
-			this._finishProgressWindow(summary);
-			return result;
-		}
-		catch (e) {
-			this.progress = null;
-			if (e instanceof ZoteroGitHubSync.CancelledError) {
-				ZoteroGitHubSync.log('Sync cancelled');
-				this._setStatus('idle');
-				this._finishProgressWindow(ZoteroGitHubSync.getString('progress.cancelled'));
-				return { status: 'cancelled' };
-			}
-			ZoteroGitHubSync.logError(e);
-			ZoteroGitHubSync.Prefs.set('lastError', e.message || String(e));
-			this._setStatus('error');
-			this._progressWindow?.close();
-			this._progressWindow = null;
-			// Never a modal alert: a dialog the window manager draws badly can
-			// lock the whole application. The toolbar button turns red too.
-			this._notify(e.message || String(e), { error: true });
-			return { status: 'error', error: e.message || String(e) };
-		}
-		finally {
-			this._running = false;
-			this._cancel = null;
-		}
+		// The unified workspace is the only product mode. System Git and the
+		// GitHub API are interchangeable transports inside Workspace.syncNow().
+		return this._syncLocalWorkspace({ trigger, silent });
 	},
 
 
@@ -1293,86 +1206,14 @@ ZoteroGitHubSync.Sync = {
 
 	/**
 	 * @param {Object} [options]
-	 * @param {Boolean} [options.confirm=true] - Ask before touching the library
 	 * @return {Promise<Object>}
 	 */
-	async pull({ confirm = true } = {}) {
+	async pull() {
 		if (this._running) {
 			this._openProgressWindow();
 			return { status: 'busy' };
 		}
-		let config = ZoteroGitHubSync.Prefs.getConfig();
-		if (config.syncMode === 'local-workspace') {
-			return this.syncNow({ trigger: 'manual-import', silent: false });
-		}
-		let token = await ZoteroGitHubSync.Prefs.getToken();
-		if (!config.owner || !config.repo || !token) {
-			this._notify(ZoteroGitHubSync.getString('error.notConfigured'), { error: true });
-			return { status: 'not-configured' };
-		}
-
-		if (confirm) {
-			let win = Zotero.getMainWindow();
-			let accepted = Services.prompt.confirm(
-				win,
-				ZoteroGitHubSync.getString('confirm.pullTitle'),
-				ZoteroGitHubSync.getString('confirm.pullBody', `${config.owner}/${config.repo}`)
-			);
-			if (!accepted) {
-				return { status: 'cancelled' };
-			}
-		}
-
-		this._running = true;
-		this._cancel = new ZoteroGitHubSync.CancelToken();
-		this._suppressChangeTrigger = true;
-		this.progress = null;
-		this._setStatus('syncing');
-		this._updateProgress({ phase: 'importing', message: ZoteroGitHubSync.getString('progress.importing') });
-		this._openProgressWindow();
-
-		try {
-			let result = await ZoteroGitHubSync.Importer.run({
-				config,
-				token,
-				cancel: this._cancel,
-				onProgress: message => this._updateProgress({ phase: 'importing', message }),
-			});
-			ZoteroGitHubSync.Prefs.set('lastWarnings', this._formatWarnings(result.failures));
-			this.progress = null;
-			this._setStatus('idle');
-			let summary = ZoteroGitHubSync.getString(
-				'progress.imported',
-				String(result.created),
-				String(result.updated),
-				String(result.files)
-			);
-			if (result.failures.length) {
-				summary += `\n${ZoteroGitHubSync.getString('progress.warnings', String(result.failures.length))}`;
-			}
-			this._finishProgressWindow(summary);
-			return result;
-		}
-		catch (e) {
-			this.progress = null;
-			if (e instanceof ZoteroGitHubSync.CancelledError) {
-				this._setStatus('idle');
-				this._finishProgressWindow(ZoteroGitHubSync.getString('progress.cancelled'));
-				return { status: 'cancelled' };
-			}
-			ZoteroGitHubSync.logError(e);
-			ZoteroGitHubSync.Prefs.set('lastError', e.message || String(e));
-			this._setStatus('error');
-			this._progressWindow?.close();
-			this._progressWindow = null;
-			this._notify(e.message || String(e), { error: true });
-			return { status: 'error', error: e.message || String(e) };
-		}
-		finally {
-			this._running = false;
-			this._cancel = null;
-			this._suppressChangeTrigger = false;
-		}
+		return this.syncNow({ trigger: 'manual-import', silent: false });
 	},
 
 

@@ -10,28 +10,6 @@ ZoteroGitHubSync.UI = {
 	_added: new WeakMap(),
 	_windows: new Set(),
 
-	/**
-	 * The collection selected in a window's collection tree, or null. Zotero 10
-	 * removed ZoteroPane.getSelectedCollection() (it throws) in favour of
-	 * getSelectedCollections(); older versions only have the former.
-	 */
-	selectedCollection(win) {
-		let pane = win?.ZoteroPane;
-		if (!pane) {
-			return null;
-		}
-		try {
-			if (typeof pane.getSelectedCollections === 'function') {
-				return pane.getSelectedCollections()[0] || null;
-			}
-			return pane.getSelectedCollection() || null;
-		}
-		catch (e) {
-			return null;
-		}
-	},
-
-
 	addToWindow(win) {
 		if (this._added.has(win)) {
 			return;
@@ -45,7 +23,6 @@ ZoteroGitHubSync.UI = {
 			'_addToolbarButton',
 			'_addToolsMenu',
 			'_addItemContextMenu',
-			'_addCollectionContextMenu',
 			'_addReadingNoteShortcut',
 		]) {
 			try {
@@ -163,7 +140,7 @@ ZoteroGitHubSync.UI = {
 				: [];
 			for (let entry of [...entries, ...this._menuEntries(win)]) {
 				let item = this._createMenuItem(doc, entry);
-				if (running && ['sync-now', 'review', 'sync-selected', 'pull'].includes(entry.id)) {
+				if (running && entry.id === 'sync-now') {
 					item.setAttribute('disabled', 'true');
 				}
 				popup.append(item);
@@ -177,7 +154,7 @@ ZoteroGitHubSync.UI = {
 				Sync._openProgressWindow();
 				return;
 			}
-			Sync.syncNow({ trigger: 'button', forceReview: Sync.status === 'attention' })
+			Sync.syncNow({ trigger: 'button' })
 				.catch(e => ZoteroGitHubSync.logError(e));
 		});
 		button.addEventListener('contextmenu', (event) => {
@@ -230,10 +207,6 @@ ZoteroGitHubSync.UI = {
 		let separator = doc.createXULElement('menuseparator');
 		separator.id = 'zotero-github-sync-item-separator';
 
-		let menuitem = doc.createXULElement('menuitem');
-		menuitem.id = 'zotero-github-sync-item-menuitem';
-		menuitem.setAttribute('label', ZoteroGitHubSync.getString('menu.syncSelected'));
-		menuitem.addEventListener('command', () => this._syncSelectedItems(win));
 		let openNote = doc.createXULElement('menuitem');
 		openNote.id = 'zotero-quartz-open-reading-note';
 		openNote.setAttribute('label', 'Open Reading Note in Obsidian');
@@ -243,23 +216,21 @@ ZoteroGitHubSync.UI = {
 		// ZoteroPane rebuilds this menu by index, so appended items survive, but
 		// their visibility is ours to manage
 		let onPopupShowing = () => {
-			let selected = this._getSelectedItems(win);
-			let visible = ZoteroGitHubSync.Prefs.hasRepoConfig() && selected.length > 0;
+			let selected = win.ZoteroPane?.getSelectedItems?.() || [];
+			let visible = !!ZoteroGitHubSync.Prefs.getConfig().workspacePath && selected.length > 0;
 			separator.hidden = !visible;
-			menuitem.hidden = !visible;
-			openNote.hidden = !(visible && ZoteroGitHubSync.Prefs.getConfig().syncMode === 'local-workspace');
+			openNote.hidden = !visible;
 		};
 		itemMenu.addEventListener('popupshowing', onPopupShowing);
 		elements.push({
 			remove: () => {
 				itemMenu.removeEventListener('popupshowing', onPopupShowing);
 				separator.remove();
-				menuitem.remove();
 				openNote.remove();
 			},
 		});
 
-		itemMenu.append(separator, openNote, menuitem);
+		itemMenu.append(separator, openNote);
 	},
 
 
@@ -277,34 +248,6 @@ ZoteroGitHubSync.UI = {
 	},
 
 
-	_addCollectionContextMenu(win, elements) {
-		let doc = win.document;
-		let collectionMenu = doc.getElementById('zotero-collectionmenu');
-		if (!collectionMenu) {
-			return;
-		}
-
-		let menuitem = doc.createXULElement('menuitem');
-		menuitem.id = 'zotero-github-sync-collection-menuitem';
-		menuitem.setAttribute('label', ZoteroGitHubSync.getString('menu.syncCollection'));
-		menuitem.addEventListener('command', () => this._syncSelectedCollection(win));
-
-		let onPopupShowing = () => {
-			let collection = this.selectedCollection(win);
-			menuitem.hidden = !(collection && ZoteroGitHubSync.Prefs.hasRepoConfig());
-		};
-		collectionMenu.addEventListener('popupshowing', onPopupShowing);
-		elements.push({
-			remove: () => {
-				collectionMenu.removeEventListener('popupshowing', onPopupShowing);
-				menuitem.remove();
-			},
-		});
-
-		collectionMenu.append(menuitem);
-	},
-
-
 	/**
 	 * The entries shared by the Tools menu and the toolbar dropdown.
 	 */
@@ -317,30 +260,20 @@ ZoteroGitHubSync.UI = {
 					.catch(e => ZoteroGitHubSync.logError(e)),
 			},
 			{
-				id: 'review',
-				label: ZoteroGitHubSync.getString('menu.review'),
-				command: () => ZoteroGitHubSync.Sync.syncNow({ trigger: 'review', forceReview: true })
-					.catch(e => ZoteroGitHubSync.logError(e)),
-			},
-			{
-				id: 'sync-selected',
-				label: ZoteroGitHubSync.getString('menu.syncSelected'),
-				command: () => this._syncSelectedItems(win),
-			},
-			{
-				id: 'pull',
-				label: ZoteroGitHubSync.getString('menu.pull'),
-				command: () => ZoteroGitHubSync.Sync.pull()
-					.catch(e => ZoteroGitHubSync.logError(e)),
+				id: 'open-reading-note',
+				label: 'Open Reading Note in Obsidian',
+				command: () => this._openReadingNote(win),
 			},
 			{ id: 'separator', separator: true },
 			{
 				id: 'open-repo',
 				label: ZoteroGitHubSync.getString('menu.openRepo'),
 				command: () => {
-					let url = ZoteroGitHubSync.Prefs.getRepoURL();
-					if (url) {
-						Zotero.launchURL(url);
+					let config = ZoteroGitHubSync.Prefs.getConfig();
+					if (config.workspaceTransport === 'system-git') Zotero.File.reveal(config.workspacePath);
+					else {
+						let url = ZoteroGitHubSync.Prefs.getRepoURL();
+						if (url) Zotero.launchURL(url);
 					}
 				},
 			},
@@ -350,13 +283,6 @@ ZoteroGitHubSync.UI = {
 				command: () => this._openPreferences(),
 			},
 		];
-		if (ZoteroGitHubSync.Prefs.getConfig().syncMode === 'local-workspace') {
-			entries.splice(3, 0, {
-				id: 'open-reading-note',
-				label: 'Open Reading Note in Obsidian',
-				command: () => this._openReadingNote(win),
-			});
-		}
 		return entries;
 	},
 
@@ -374,29 +300,6 @@ ZoteroGitHubSync.UI = {
 
 	// -- Actions -----------------------------------------------------------
 
-	_getSelectedItems(win) {
-		try {
-			let items = win.ZoteroPane?.getSelectedItems?.() || [];
-			// Syncing a note or attachment on its own has no meaning here; the
-			// exporter writes children alongside their parent
-			return items
-				.map(item => (item.isTopLevelItem() ? item : item.parentItem))
-				.filter((item, index, all) => item && all.indexOf(item) === index);
-		}
-		catch (e) {
-			ZoteroGitHubSync.logError(e);
-			return [];
-		}
-	},
-
-
-	_syncSelectedItems(win) {
-		let items = this._getSelectedItems(win);
-		ZoteroGitHubSync.Sync.syncNow({ trigger: 'selection', items })
-			.catch(e => ZoteroGitHubSync.logError(e));
-	},
-
-
 	async _openReadingNote(win) {
 		try {
 			let item = win.ZoteroPane?.getSelectedItems?.()?.[0];
@@ -409,30 +312,6 @@ ZoteroGitHubSync.UI = {
 		catch (e) {
 			ZoteroGitHubSync.logError(e);
 			ZoteroGitHubSync.Sync._notify(e.message || String(e), { error: true });
-		}
-	},
-
-
-	async _syncSelectedCollection(win) {
-		try {
-			let collection = this.selectedCollection(win);
-			if (!collection) {
-				return;
-			}
-			let items = collection.getChildItems(false, false) || [];
-			// Include everything filed under subcollections too, which is what
-			// "sync this collection" means to anyone looking at the tree
-			for (let child of collection.getDescendents(false, 'collection') || []) {
-				let subcollection = Zotero.Collections.get(child.id);
-				if (subcollection) {
-					items.push(...(subcollection.getChildItems(false, false) || []));
-				}
-			}
-			let unique = items.filter((item, index) => items.indexOf(item) === index);
-			await ZoteroGitHubSync.Sync.syncNow({ trigger: 'collection', items: unique });
-		}
-		catch (e) {
-			ZoteroGitHubSync.logError(e);
 		}
 	},
 

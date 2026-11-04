@@ -4,11 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] — 2026-11-04
+
+### Added
+
+- GitHub API transport for the complete managed Local Workspace, including arbitrary Obsidian/Quartz content, machine-local three-way bases, safe remote downloads/deletions, conflict preservation and non-force branch updates.
+- An in-memory GitHub remote integration test covering initial two-way transfer, independent edits and a same-file conflict.
+
+### Changed
+
+- The former Zotero-only GitHub API product mode is no longer exposed. The plugin now always coordinates one Local Workspace and lets the user choose System Git or GitHub API as its transport.
+- Partial item/collection sync commands were removed because every entry point now reconciles the same workspace transaction.
 
 ### Fixed
 
-- Local Workspace now finds Git in standard Windows, Homebrew, MacPorts, and Unix locations when Zotero's GUI process does not inherit the terminal `PATH`, while retaining the explicit executable override.
+- System Git transport now finds Git in standard Windows, Homebrew, MacPorts, and Unix locations when Zotero's GUI process does not inherit the terminal `PATH`, while retaining the explicit executable override.
 
 ## [1.0.0] — 2026-11-04
 

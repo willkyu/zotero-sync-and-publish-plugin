@@ -28,8 +28,8 @@ window.ZoteroGitHubSyncPrefs = {
 				this.saveToken();
 			}
 		});
-		document.getElementById('zgs-sync-mode').addEventListener('change', event => {
-			this.plugin.Prefs.set('syncMode', event.target.value);
+		document.getElementById('zgs-workspace-transport').addEventListener('change', event => {
+			this.plugin.Prefs.set('workspaceTransport', event.target.value);
 			setTimeout(() => this.refreshMode(), 0);
 		});
 
@@ -44,11 +44,12 @@ window.ZoteroGitHubSyncPrefs = {
 
 	refreshMode() {
 		let config = this.plugin.Prefs.getConfig();
-		let local = config.syncMode === 'local-workspace';
-		document.getElementById('zgs-sync-mode').value = config.syncMode;
-		document.getElementById('zgs-local-settings').hidden = !local;
-		document.getElementById('zgs-github-account').hidden = local;
-		document.getElementById('zgs-github-repository').hidden = local;
+		let api = config.workspaceTransport === 'github-api';
+		document.getElementById('zgs-workspace-transport').value = config.workspaceTransport;
+		document.getElementById('zgs-system-git-settings').hidden = api;
+		document.getElementById('zgs-system-auto-push').hidden = api;
+		document.getElementById('zgs-github-account').hidden = !api;
+		document.getElementById('zgs-github-repository').hidden = !api;
 		let pause = document.getElementById('zgs-pause');
 		pause.label = config.automationPaused ? 'Resume automation' : 'Pause automation';
 	},
@@ -93,11 +94,26 @@ window.ZoteroGitHubSyncPrefs = {
 		status.textContent = 'Checking…';
 		try {
 			let config = this.plugin.Prefs.getConfig();
-			await new this.plugin.LocalGit(config).validate();
+			if (!config.workspacePath || !PathUtils.isAbsolute(config.workspacePath)
+				|| !await IOUtils.exists(config.workspacePath)) {
+				throw new Error('Choose an existing absolute workspace directory.');
+			}
+			let transport;
+			if (config.workspaceTransport === 'system-git') {
+				await new this.plugin.LocalGit(config).validate();
+				transport = 'System Git workspace and branch are valid.';
+			}
+			else {
+				let token = await this.plugin.Prefs.getToken();
+				if (!token || !config.owner || !config.repo || !config.branch) {
+					throw new Error('Workspace is valid; configure and save the GitHub API repository and token.');
+				}
+				transport = 'Workspace directory and GitHub API settings are configured.';
+			}
 			let bn = this.plugin.BetterNotes.available()
 				? `Better Notes ${this.plugin.BetterNotes.version()} detected.`
 				: 'Better Notes public API is unavailable.';
-			status.textContent = `Git workspace and branch are valid. ${bn}`;
+			status.textContent = `${transport} ${bn}`;
 			status.classList.toggle('zgs-error', !this.plugin.BetterNotes.available());
 		}
 		catch (e) {
@@ -253,7 +269,7 @@ window.ZoteroGitHubSyncPrefs = {
 
 	openRepo() {
 		let config = this.plugin.Prefs.getConfig();
-		if (config.syncMode === 'local-workspace') {
+		if (config.workspaceTransport === 'system-git') {
 			Zotero.File.reveal(config.workspacePath);
 			return;
 		}
@@ -291,12 +307,12 @@ window.ZoteroGitHubSyncPrefs = {
 			lines.push(`Last error: ${lastError}`);
 		}
 		if (lastWarnings) {
-			lines.push('Skipped or not restored:', ...lastWarnings.split('\n').map(line => `  ${line}`));
+			lines.push('Pending or warnings:', ...lastWarnings.split('\n').map(line => `  ${line}`));
 		}
-		if (localStatus && prefs.getConfig().syncMode === 'local-workspace') {
+		if (localStatus) {
 			try {
 				let value = JSON.parse(localStatus);
-				lines.push(`Workspace: ${value.status}; Git: ${value.git}; pending: ${value.pending}`);
+				lines.push(`Workspace: ${value.status}; transport: ${value.transport || 'system-git'}; remote: ${value.remote || value.git}; pending: ${value.pending}`);
 			}
 			catch (e) {}
 		}

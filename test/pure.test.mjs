@@ -6,9 +6,9 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 const SRC = fileURLToPath(new URL('../src', import.meta.url));
 globalThis.ZoteroGitHubSync = { log(){}, warn(){}, logError: console.error, version: '0.2.0', getString: k => k };
-for (const f of ['utils.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
+for (const f of ['utils.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'workspace-api.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
 const U = ZoteroGitHubSync.Utils, E = ZoteroGitHubSync.Exporter, I = ZoteroGitHubSync.Importer;
-const G = ZoteroGitHubSync.LocalGit, BN = ZoteroGitHubSync.BetterNotes, W = ZoteroGitHubSync.Workspace;
+const G = ZoteroGitHubSync.LocalGit, API = ZoteroGitHubSync.WorkspaceAPITransport, BN = ZoteroGitHubSync.BetterNotes, W = ZoteroGitHubSync.Workspace;
 
 // base64 across block boundaries
 for (const n of [0, 1, 2, 3, 3*1024*1024 - 1, 3*1024*1024, 3*1024*1024 + 1, 7*1024*1024 + 2]) {
@@ -230,6 +230,39 @@ assert.deepEqual(G.parsePorcelainZ(' M content/a.md\0R  zotero/old.json\0zotero/
 assert.ok(G.executableCandidates('WINNT', { ProgramFiles: 'D:\\Apps' }).includes('D:\\Apps\\Git\\cmd\\git.exe'));
 assert.ok(G.executableCandidates('WINNT', { LOCALAPPDATA: 'C:\\Users\\test\\AppData\\Local' }).includes('C:\\Users\\test\\AppData\\Local\\Programs\\Git\\cmd\\git.exe'));
 assert.ok(G.executableCandidates('Darwin').includes('/opt/homebrew/bin/git'));
+{
+  const base = M({
+    'content/local.md': 'a', 'content/remote.md': 'b', 'content/both.md': 'c',
+    'content/local-delete.md': 'd', 'content/remote-delete.md': 'e',
+  });
+  const local = M({
+    'content/local.md': 'a2', 'content/remote.md': 'b', 'content/both.md': 'c2',
+    'content/remote-delete.md': 'e', 'content/new-local.md': 'n',
+  });
+  const remote = M({
+    'content/local.md': 'a', 'content/remote.md': 'b2', 'content/both.md': 'c3',
+    'content/local-delete.md': 'd', 'content/new-remote.md': 'r',
+  });
+  const plan = API.plan({ local, remote, base });
+  assert.deepEqual(plan.upload, ['content/local.md', 'content/new-local.md']);
+  assert.deepEqual(plan.download, ['content/new-remote.md', 'content/remote.md']);
+  assert.deepEqual(plan.deleteRemote, ['content/local-delete.md']);
+  assert.deepEqual(plan.deleteLocal, ['content/remote-delete.md']);
+  assert.deepEqual(plan.conflicts, ['content/both.md']);
+  const next = API.nextBase({ local, remote, base, undecided: new Set(plan.conflicts) });
+  assert.equal(next.get('content/both.md'), 'c', 'a workspace conflict keeps its old machine-local base');
+  assert.equal(next.has('content/local.md'), false, 'one-sided changes are not recorded until transferred');
+}
+{
+  const plan = API.plan({
+    local: M({ 'content/same.md': 's', 'content/different.md': 'l', 'content/local.md': 'x' }),
+    remote: M({ 'content/same.md': 's', 'content/different.md': 'r', 'content/remote.md': 'y' }),
+    base: null,
+  });
+  assert.deepEqual(plan.upload, ['content/local.md']);
+  assert.deepEqual(plan.download, ['content/remote.md']);
+  assert.deepEqual(plan.conflicts, ['content/different.md']);
+}
 assert.deepEqual(BN.unsafeMarkdown('# Fine\n\n- [ ] lossy\n\n![[embed.png]]\n'), ['task lists', 'Obsidian embeds']);
 assert.deepEqual(BN.unsafeMarkdown('```md\n- [ ] code\n![[x]]\n```\n> [!note]\n[[Page]]'), []);
 assert.equal(BN.relativePosix('content/papers', 'content/assets/图 1.png'), '../assets/图 1.png');

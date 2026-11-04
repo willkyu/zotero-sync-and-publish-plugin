@@ -9,7 +9,8 @@
 | `content/papers/**.md` | yes | publishable/editable reading-note representation |
 | `content/assets/**` | yes | publishable note-image bytes |
 | `zotero/.zotero-sync/bindings.json` | yes | stable library/parent/note/path/image identities and last coordinated hashes |
-| Zotero profile `zotero-quartz-workspace/state-*.json` | no | machine-local three-way mirror baseline |
+| Zotero profile `zotero-quartz-workspace/state-*.json` | no | machine-local Zotero↔workspace mirror baseline |
+| Zotero profile `zotero-quartz-workspace/api-*.json` | no | machine-local workspace↔GitHub API baseline |
 
 The shared binding contains logical identities only. Better Notes' numeric item ID and absolute sync directory are reconstructed on each computer.
 
@@ -28,11 +29,13 @@ An active Zotero note editor changes the result to `editing` and queues another 
 
 Image mappings add an attachment key, repository-relative path and byte SHA-256. Missing bytes are restored even if the attachment row exists. Same-name changes compare both sides to this hash. A dual change remains pending.
 
-## Mirror and Git transaction
+## Mirror and transport transaction
 
 The mirror uses upstream `Exporter`, `Planner` and `Importer`. Local files are exposed to Importer through a filesystem blob client; stable Zotero keys remain the only cross-machine item identity. Writes use a sibling temporary path and atomic replace. `files.json` lists only plugin-managed output.
 
-Git uses Firefox `Subprocess.sys.mjs` with argument arrays and `git -C`; it never invokes a shell. Fetch is observational. Fast-forward happens only with a clean worktree. A normal non-force push provides the final remote compare-and-swap. Existing index entries or repository operations stop the Git phase. Deletions never execute automatically in this release.
+System Git uses Firefox `Subprocess.sys.mjs` with argument arrays and `git -C`; it never invokes a shell. Fetch is observational. Fast-forward happens only with a clean worktree. A normal non-force push provides the final remote compare-and-swap. Existing index entries or repository operations stop the Git phase.
+
+GitHub API transport scans every configured managed workspace path and compares Git blob hashes against the remote tree and a machine-local base. Remote-only changes are downloaded atomically before Zotero/Better Notes coordination. A remote deletion removes a local file only when its hash still equals the shared base. Local-only changes are written as blobs and one tree/commit; the branch ref update is non-force and fails if another computer moved it. Dual changes remain untouched on both sides and pending. Ordinary API blobs are capped at 95 MB; repositories requiring Git LFS use System Git transport.
 
 `content/` is staged as ordinary knowledge-base data, but only bound paper notes enter the Better Notes state machine. Other pages are opaque Git content.
 

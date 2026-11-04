@@ -3,31 +3,39 @@
 		onunload="ZoteroGitHubSyncPrefs.uninit()">
 	<vbox class="main-section">
 		<groupbox>
-			<label><html:h2>Sync mode</html:h2></label>
+			<label><html:h2>Workspace transport</html:h2></label>
 			<hbox align="center">
-				<label control="zgs-sync-mode" value="Mode"/>
-				<html:select id="zgs-sync-mode" preference="extensions.zotero-github-sync.syncMode">
-					<html:option value="github-api">GitHub API (upstream mode)</html:option>
-					<html:option value="local-workspace">Local Workspace (Zotero + Better Notes + Obsidian + Git)</html:option>
+				<label control="zgs-workspace-transport" value="Transport"/>
+				<html:select id="zgs-workspace-transport" preference="extensions.zotero-github-sync.workspaceTransport">
+					<html:option value="system-git">System Git (git.exe / git)</html:option>
+					<html:option value="github-api">GitHub API</html:option>
 				</html:select>
 			</hbox>
-			<html:div class="zgs-hint">Only one mode runs at a time. Local Workspace never calls the GitHub Contents API.</html:div>
+			<html:div class="zgs-hint">Both choices synchronize the same complete Local Workspace. Only the remote transport changes.</html:div>
+			<html:div class="zgs-hint">GitHub API transport uses ordinary Git blobs and skips individual files over 95 MB. Choose System Git when the repository uses Git LFS.</html:div>
 		</groupbox>
 
 		<groupbox id="zgs-local-settings">
-			<label><html:h2>Local Workspace</html:h2></label>
+			<label><html:h2>Workspace</html:h2></label>
 			<hbox align="center">
 				<label control="zgs-workspace-path" value="Research repository root"/>
 				<html:input id="zgs-workspace-path" type="text" flex="1" preference="extensions.zotero-github-sync.workspacePath"/>
 				<button label="Choose…" oncommand="ZoteroGitHubSyncPrefs.chooseFolder('workspacePath', 'zgs-workspace-path')"/>
 			</hbox>
+			<vbox id="zgs-system-git-settings">
+				<hbox align="center">
+					<label value="Git executable"/><html:input type="text" size="18" preference="extensions.zotero-github-sync.gitExecutable"/>
+					<label value="Remote"/><html:input type="text" size="12" preference="extensions.zotero-github-sync.gitRemote"/>
+				</hbox>
+				<hbox align="center">
+					<label value="Branch"/><html:input type="text" size="18" preference="extensions.zotero-github-sync.gitBranch"/>
+				</hbox>
+			</vbox>
 			<hbox align="center">
-				<label value="Git executable"/><html:input type="text" size="18" preference="extensions.zotero-github-sync.gitExecutable"/>
-				<label value="Remote"/><html:input type="text" size="12" preference="extensions.zotero-github-sync.gitRemote"/>
-				<label value="Branch"/><html:input type="text" size="12" preference="extensions.zotero-github-sync.gitBranch"/>
+				<label value="Managed workspace paths"/><html:input type="text" flex="1" preference="extensions.zotero-github-sync.managedPaths" placeholder="content,zotero"/>
 			</hbox>
 			<hbox align="center">
-				<label value="Managed commit paths"/><html:input type="text" flex="1" preference="extensions.zotero-github-sync.managedPaths" placeholder="content,zotero"/>
+				<label value="Zotero mirror folder"/><html:input type="text" flex="1" preference="extensions.zotero-github-sync.basePath" placeholder="zotero"/>
 			</hbox>
 			<hbox align="center">
 				<label value="Reading notes"/><html:input type="text" flex="1" preference="extensions.zotero-github-sync.papersPath"/>
@@ -35,8 +43,8 @@
 			</hbox>
 			<checkbox label="Sync note images (independent of PDFs)" preference="extensions.zotero-github-sync.includeNoteImagesLocal"/>
 			<checkbox label="Sync original PDFs and other literature attachments" preference="extensions.zotero-github-sync.includePDFsLocal"/>
-			<checkbox label="Automatically commit managed paths" preference="extensions.zotero-github-sync.autoCommit"/>
-			<checkbox label="Automatically push after a successful commit" preference="extensions.zotero-github-sync.autoPush"/>
+			<checkbox label="Automatically publish managed workspace changes" preference="extensions.zotero-github-sync.autoCommit"/>
+			<checkbox id="zgs-system-auto-push" label="Automatically push after a successful system Git commit" preference="extensions.zotero-github-sync.autoPush"/>
 			<hbox align="center">
 				<label value="Obsidian Vault path"/><html:input id="zgs-vault-path" type="text" flex="1" preference="extensions.zotero-github-sync.obsidianVaultPath"/>
 				<button label="Choose…" oncommand="ZoteroGitHubSyncPrefs.chooseFolder('obsidianVaultPath', 'zgs-vault-path')"/>
@@ -101,18 +109,9 @@
 						preference="extensions.zotero-github-sync.repo"
 						placeholder="my-zotero-library"/>
 			</hbox>
-
 			<hbox align="center">
-				<label control="zgs-branch" value="Branch"/>
-				<html:input id="zgs-branch" type="text" size="20"
-						preference="extensions.zotero-github-sync.branch"/>
-			</hbox>
-
-			<hbox align="center">
-				<label control="zgs-base-path" value="Folder inside the repository"/>
-				<html:input id="zgs-base-path" type="text" flex="1"
-						preference="extensions.zotero-github-sync.basePath"
-						placeholder="zotero (leave empty for the repository root)"/>
+				<label value="Branch"/>
+				<html:input type="text" size="20" preference="extensions.zotero-github-sync.branch"/>
 			</hbox>
 
 			<checkbox label="Create the repository if it does not exist"
@@ -125,56 +124,6 @@
 				<html:input id="zgs-api-url" type="text" flex="1"
 						preference="extensions.zotero-github-sync.apiURL"/>
 			</hbox>
-		</groupbox>
-
-		<groupbox>
-			<label><html:h2>What gets synced</html:h2></label>
-
-			<checkbox label="Item metadata as JSON (needed for Import from GitHub)"
-					preference="extensions.zotero-github-sync.exportJSON"/>
-			<checkbox label="Markdown notes with YAML front matter (readable in Obsidian)"
-					preference="extensions.zotero-github-sync.exportMarkdown"/>
-			<checkbox label="Table of contents (index.md and README.md)"
-					preference="extensions.zotero-github-sync.exportIndex"/>
-			<checkbox label="BibTeX export (library.bib)"
-					preference="extensions.zotero-github-sync.exportBibTeX"/>
-			<checkbox label="Child notes"
-					preference="extensions.zotero-github-sync.includeNotes"/>
-			<checkbox label="Group libraries"
-					preference="extensions.zotero-github-sync.includeGroupLibraries"/>
-			<checkbox id="zgs-include-attachments" label="Attachment files (PDFs, books, snapshots, note images)"
-					preference="extensions.zotero-github-sync.includeAttachments"/>
-			<checkbox class="zgs-indent" label="Include linked files stored outside the Zotero data directory"
-					preference="extensions.zotero-github-sync.includeLinkedFiles"/>
-
-			<hbox align="center" class="zgs-indent">
-				<checkbox label="Store files larger than"
-						preference="extensions.zotero-github-sync.lfsEnabled"/>
-				<html:input id="zgs-lfs-threshold" type="text" size="5"
-						preference="extensions.zotero-github-sync.lfsThresholdMB"/>
-				<label value="MB with Git LFS"/>
-			</hbox>
-
-			<hbox align="center" class="zgs-indent">
-				<label control="zgs-max-attachment" value="Skip attachments larger than"/>
-				<html:input id="zgs-max-attachment" type="text" size="5"
-						preference="extensions.zotero-github-sync.maxAttachmentMB"/>
-				<label value="MB (0 = no limit)"/>
-			</hbox>
-
-			<html:div class="zgs-hint">
-				GitHub refuses files over 100 MB in Git, so larger files go to Git LFS, which counts
-				against the account's LFS quota (10 GiB storage and bandwidth on GitHub Free).
-				GitHub recommends keeping a repository under 10 GB. Notes, annotations, collections,
-				saved searches and tag colors are always synced.
-			</html:div>
-
-			<checkbox label="Remove files from the repository when their items are deleted"
-					preference="extensions.zotero-github-sync.prune"/>
-			<html:div class="zgs-hint">
-				Only files this plugin wrote are ever removed. Anything else in the repository is
-				left alone.
-			</html:div>
 		</groupbox>
 
 		<groupbox>
@@ -199,12 +148,12 @@
 			<checkbox label="Sync shortly after Zotero starts"
 					preference="extensions.zotero-github-sync.syncOnStartup"/>
 
-			<checkbox label="Sync to GitHub after Zotero's own sync finishes (the sync button in the toolbar)"
+			<checkbox label="Sync the workspace after Zotero's own sync finishes (the sync button in the toolbar)"
 					preference="extensions.zotero-github-sync.syncAfterZoteroSync"/>
 
 			<html:div class="zgs-hint">
-				A sync that finds nothing to change makes no commit, so a short interval is cheap
-				in repository history -- but it still costs GitHub API calls.
+				A sync that finds nothing to change makes no commit. Short intervals still perform
+				remote checks through the selected transport.
 			</html:div>
 		</groupbox>
 
@@ -244,9 +193,9 @@
 						oncommand="ZoteroGitHubSyncPrefs.syncNow()"/>
 				<button id="zgs-cancel" label="Cancel sync" hidden="true"
 						oncommand="ZoteroGitHubSyncPrefs.cancel()"/>
-				<button id="zgs-pull" label="Import from GitHub…"
+				<button id="zgs-pull" label="Reconcile remote changes"
 						oncommand="ZoteroGitHubSyncPrefs.pull()"/>
-				<button id="zgs-open-repo" label="Open repository"
+				<button id="zgs-open-repo" label="Open workspace or repository"
 						oncommand="ZoteroGitHubSyncPrefs.openRepo()"/>
 			</hbox>
 		</groupbox>

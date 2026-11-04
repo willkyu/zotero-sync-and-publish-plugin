@@ -496,9 +496,8 @@ ZoteroGitHubSync.Exporter = {
 			);
 		};
 
-		let excludedInWorkspace = config.syncMode === 'local-workspace'
-			&& ((isNoteImage && !config.includeNoteImagesLocal)
-				|| (!isNoteImage && !config.includePDFsLocal));
+		let excludedInWorkspace = (isNoteImage && !config.includeNoteImagesLocal)
+			|| (!isNoteImage && !config.includePDFsLocal);
 		if (!config.includeAttachments || excludedInWorkspace) {
 			entry.status = 'not-synced';
 			keepExisting();

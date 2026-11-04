@@ -11,9 +11,10 @@ pref("extensions.zotero-github-sync.owner", "");
 pref("extensions.zotero-github-sync.repo", "");
 pref("extensions.zotero-github-sync.branch", "main");
 pref("extensions.zotero-github-sync.basePath", "zotero");
-// github-api keeps the upstream REST implementation. local-workspace uses a
-// checked-out Git repository and the user's existing Git credentials.
-pref("extensions.zotero-github-sync.syncMode", "github-api");
+// The product always coordinates a Local Workspace. Only its remote transport
+// changes: system-git uses a checkout; github-api synchronizes managed paths
+// directly through GitHub's Git Database API.
+pref("extensions.zotero-github-sync.workspaceTransport", "system-git");
 pref("extensions.zotero-github-sync.workspacePath", "");
 pref("extensions.zotero-github-sync.gitExecutable", "git");
 pref("extensions.zotero-github-sync.gitRemote", "origin");

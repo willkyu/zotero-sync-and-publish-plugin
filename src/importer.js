@@ -512,13 +512,11 @@ ZoteroGitHubSync.Importer = {
 			if (!attachment || !attachment.isFileAttachment()) {
 				continue;
 			}
-			if (config.syncMode === 'local-workspace') {
-				let parent = attachment.parentItem;
-				let isNoteImage = !!parent?.isNote?.();
-				if ((isNoteImage && !config.includeNoteImagesLocal)
-					|| (!isNoteImage && !config.includePDFsLocal)) {
-					continue;
-				}
+			let parent = attachment.parentItem;
+			let isNoteImage = !!parent?.isNote?.();
+			if ((isNoteImage && !config.includeNoteImagesLocal)
+				|| (!isNoteImage && !config.includePDFsLocal)) {
+				continue;
 			}
 			if (attachment.isLinkedFileAttachment() && !keepBoth.size) {
 				// A linked file that resolves here is the user's own copy

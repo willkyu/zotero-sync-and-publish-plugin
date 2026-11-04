@@ -46,7 +46,10 @@ ZoteroGitHubSync.Workspace = {
 	},
 
 	statePath(config) {
-		let identity = [this.normalize(config.workspacePath).toLowerCase(), config.gitRemote, config.gitBranch].join('\n');
+		let remote = config.workspaceTransport === 'github-api'
+			? [config.apiURL, config.owner, config.repo, config.branch].join('/')
+			: [config.gitRemote, config.gitBranch].join('/');
+		let identity = [this.normalize(config.workspacePath).toLowerCase(), config.workspaceTransport, remote].join('\n');
 		let id = Zotero.Utilities.Internal.md5(identity, false);
 		return PathUtils.join(Zotero.Profile.dir, 'zotero-quartz-workspace', `state-${id}.json`);
 	},
@@ -139,6 +142,24 @@ ZoteroGitHubSync.Workspace = {
 			else if (stat.type === 'regular' && !name.endsWith('.zqws-tmp')) found.push({ path: rel, absolute: child, size: stat.size, mtime: stat.lastModified || 0 });
 		}
 		return found;
+	},
+
+	async scanManaged(config) {
+		let files = new Map();
+		let hashes = new Map();
+		for (let root of config.managedPaths) {
+			let absoluteRoot = this.resolve(config, root);
+			for (let file of await this.listFiles(absoluteRoot)) {
+				let path = `${root}/${file.path}`;
+				if (files.has(path)) continue;
+				let hash = await ZoteroGitHubSync.Files.cachedHash({
+					path: file.absolute, size: file.size, mtime: file.mtime,
+				}, 'git');
+				files.set(path, file);
+				hashes.set(path, hash);
+			}
+		}
+		return { files, hashes };
 	},
 
 	isMirrorPath(path) {
@@ -267,17 +288,43 @@ ZoteroGitHubSync.Workspace = {
 		let config = ZoteroGitHubSync.Prefs.getConfig();
 		if (!config.workspacePath) return { status: 'not-configured', added: 0, updated: 0, deleted: 0, warnings: [] };
 		if (!config.basePath) throw new Error('Local Workspace requires a non-empty Zotero mirror folder (normally "zotero").');
+		if (!config.managedPaths.length) throw new Error('Configure at least one managed workspace path.');
 		let warnings = [];
 		let pending = 0;
-		let git = new ZoteroGitHubSync.LocalGit(config);
-		await git.validate();
-		let gitState = await git.fetchAndFastForward();
-		if (['blocked', 'diverged', 'remote-pending'].includes(gitState.status)) {
-			pending++;
-			warnings.push(gitState.reason || `Git state: ${gitState.status}`);
+		let git = null;
+		let api = null;
+		let apiReady = false;
+		let gitState = { status: 'not-run' };
+		if (config.workspaceTransport === 'github-api') {
+			let token = await ZoteroGitHubSync.Prefs.getToken();
+			if (!config.owner || !config.repo || !config.branch || !token) {
+				throw new Error('Configure the GitHub owner, repository, branch, and token for API transport.');
+			}
+			ZoteroGitHubSync.Sync._updateProgress({ phase: 'downloading', message: 'Reading the GitHub workspace tree…' });
+			api = new ZoteroGitHubSync.WorkspaceAPITransport(config, token);
+			try {
+				let prepared = await api.prepare();
+				warnings.push(...prepared.warnings);
+				gitState = { status: prepared.status };
+				apiReady = true;
+			}
+			catch (e) {
+				pending++;
+				gitState = { status: 'remote-unavailable' };
+				warnings.push(`GitHub API transport is unavailable; local workspace edits are preserved: ${e.message || e}`);
+			}
 		}
-		else if (gitState.status === 'offline') {
-			warnings.push(`Git fetch unavailable; local work is preserved: ${gitState.reason}`);
+		else {
+			git = new ZoteroGitHubSync.LocalGit(config);
+			await git.validate();
+			gitState = await git.fetchAndFastForward();
+			if (['blocked', 'diverged', 'remote-pending'].includes(gitState.status)) {
+				pending++;
+				warnings.push(gitState.reason || `Git state: ${gitState.status}`);
+			}
+			else if (gitState.status === 'offline') {
+				warnings.push(`Git fetch unavailable; local work is preserved: ${gitState.reason}`);
+			}
 		}
 
 		ZoteroGitHubSync.Sync._updateProgress({ phase: 'collecting', message: 'Reading Local Workspace…' });
@@ -333,43 +380,65 @@ ZoteroGitHubSync.Workspace = {
 		let finalHashes = await this.hashExport(finalExport.files);
 		let keptPaths = this.applyKeepPrefixes(finalHashes, before.hashes, finalExport.keepPrefixes || []);
 		let changed = await this.writeExport(config, finalExport.files, keptPaths);
-		let gitResult = { status: 'not-run' };
-		let remoteUnsafe = ['blocked', 'diverged', 'remote-pending'].includes(gitState.status);
-		if (config.autoCommit && !remoteUnsafe) {
+		let transportResult = { status: 'not-run' };
+		let remoteUnsafe = config.workspaceTransport === 'system-git'
+			&& ['blocked', 'diverged', 'remote-pending'].includes(gitState.status);
+		if (apiReady) {
+			ZoteroGitHubSync.Sync._updateProgress({ phase: 'committing', message: 'Publishing managed paths through the GitHub API…' });
+			transportResult = await api.finish(trigger);
+			pending += transportResult.pending || 0;
+			warnings.push(...(transportResult.warnings || []));
+		}
+		else if (config.workspaceTransport === 'github-api') {
+			transportResult = { status: 'remote-unavailable', commit: null };
+		}
+		else if (config.autoCommit && !remoteUnsafe) {
 			ZoteroGitHubSync.Sync._updateProgress({ phase: 'committing', message: 'Committing managed workspace paths…' });
 			let message = (config.commitMessage || 'Research workspace sync: {changes} ({date})')
 				.replace(/\{changes\}/g, `${changed.length} file(s)`)
+				.replace(/\{added\}/g, String(changed.length))
+				.replace(/\{updated\}/g, '0')
+				.replace(/\{deleted\}/g, '0')
 				.replace(/\{trigger\}/g, trigger)
 				.replace(/\{date\}/g, ZoteroGitHubSync.Utils.isoDate());
-			gitResult = await git.commitAndPush(config.managedPaths, message, { push: config.autoPush });
-			if (['blocked', 'staged-pending', 'commit-failed', 'push-pending'].includes(gitResult.status)) {
+			transportResult = await git.commitAndPush(config.managedPaths, message, { push: config.autoPush });
+			if (['blocked', 'staged-pending', 'commit-failed', 'push-pending'].includes(transportResult.status)) {
 				pending++;
-				warnings.push(gitResult.reason || gitResult.status);
+				warnings.push(transportResult.reason || transportResult.status);
 			}
 		}
 		else if (!config.autoCommit && changed.length) {
 			warnings.push('Workspace files are ready but automatic commit is disabled.');
 		}
 
-		if (!unresolved.length && !noteResult.pending) await this.saveState(config, finalHashes, gitResult.commit || null);
-		let status = pending ? 'pending' : (gitResult.status === 'pushed' ? 'pushed' : changed.length ? 'local-complete' : 'up-to-date');
-		ZoteroGitHubSync.Prefs.set('localStatus', JSON.stringify({ status, git: gitResult.status, pending, at: new Date().toISOString() }));
+		if (!unresolved.length && !noteResult.pending) await this.saveState(config, finalHashes, transportResult.commit || null);
+		let status = pending ? 'pending' : (transportResult.status === 'pushed' ? 'pushed' : changed.length ? 'local-complete' : 'up-to-date');
+		ZoteroGitHubSync.Prefs.set('localStatus', JSON.stringify({
+			status,
+			transport: config.workspaceTransport,
+			remote: transportResult.status,
+			pending,
+			at: new Date().toISOString(),
+		}));
+		await ZoteroGitHubSync.Files.saveCache();
 		return {
 			status,
 			added: changed.length,
 			updated: imported.updated + imported.created,
-			deleted: 0,
-			commit: gitResult.commit || null,
+			deleted: transportResult.deletedRemote || 0,
+			commit: transportResult.commit || null,
 			pending,
 			warnings,
-			git: gitResult,
+			transport: transportResult,
 			notes: noteResult.results,
 		};
 	},
 
 	async openReadingNote(item) {
 		let config = ZoteroGitHubSync.Prefs.getConfig();
-		await new ZoteroGitHubSync.LocalGit(config).validate();
+		if (!config.workspacePath || !PathUtils.isAbsolute(config.workspacePath) || !await IOUtils.exists(config.workspacePath)) {
+			throw new Error('Configure an existing absolute Local Workspace path.');
+		}
 		let bindings = await this.loadBindings(config);
 		let data = { bindings, save: () => this.saveBindings(config, bindings) };
 		return ZoteroGitHubSync.BetterNotes.openReadingNote(item, config, data);
@@ -398,7 +467,7 @@ ZoteroGitHubSync.Workspace = {
 	startWatcher() {
 		this.stopWatcher();
 		let config = ZoteroGitHubSync.Prefs.getConfig();
-		if (config.syncMode !== 'local-workspace' || !config.workspacePath || config.automationPaused || !config.syncOnChange) return;
+		if (!config.workspacePath || config.automationPaused || !config.syncOnChange) return;
 		this.fingerprint(config).then(value => { this._pollFingerprint = value; }).catch(() => {});
 		this._pollTimer = setInterval(async () => {
 			try {

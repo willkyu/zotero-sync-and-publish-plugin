@@ -20,6 +20,7 @@ var SOURCE_FILES = [
 	'src/exporter.js',
 	'src/importer.js',
 	'src/git.js',
+	'src/workspace-api.js',
 	'src/better-notes.js',
 	'src/workspace.js',
 	'src/sync.js',

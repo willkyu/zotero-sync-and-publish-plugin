@@ -84,12 +84,13 @@ ZoteroGitHubSync.Prefs = {
 		};
 		let managedPaths = String(this.get('managedPaths') || 'content,zotero')
 			.split(',').map(p => relative(p.trim(), '')).filter(Boolean);
+		let branch = String(this.get('branch') || 'main').trim() || 'main';
 		return {
-			syncMode: this.get('syncMode') === 'local-workspace' ? 'local-workspace' : 'github-api',
+			workspaceTransport: this.get('workspaceTransport') === 'github-api' ? 'github-api' : 'system-git',
 			workspacePath: String(this.get('workspacePath') || '').trim(),
 			gitExecutable: String(this.get('gitExecutable') || 'git').trim() || 'git',
 			gitRemote: String(this.get('gitRemote') || 'origin').trim() || 'origin',
-			gitBranch: String(this.get('gitBranch') || this.get('branch') || 'main').trim() || 'main',
+			gitBranch: String(this.get('gitBranch') || branch).trim() || branch,
 			managedPaths: [...new Set(managedPaths)],
 			papersPath: relative(this.get('papersPath'), 'content/papers'),
 			assetsPath: relative(this.get('assetsPath'), 'content/assets'),
@@ -106,7 +107,7 @@ ZoteroGitHubSync.Prefs = {
 			apiURL: (this.get('apiURL') || 'https://api.github.com').replace(/\/+$/, ''),
 			owner: (this.get('owner') || '').trim(),
 			repo: (this.get('repo') || '').trim(),
-			branch: (this.get('branch') || 'main').trim(),
+			branch,
 			basePath: ZoteroGitHubSync.Utils.normalizeBasePath(this.get('basePath')),
 			autoCreateRepo: !!this.get('autoCreateRepo'),
 			repoPrivate: !!this.get('repoPrivate'),
@@ -149,10 +150,8 @@ ZoteroGitHubSync.Prefs = {
 	 */
 	hasRepoConfig() {
 		let config = this.getConfig();
-		if (config.syncMode === 'local-workspace') {
-			return !!config.workspacePath;
-		}
-		return !!(config.owner && config.repo && config.branch);
+		return !!config.workspacePath && (config.workspaceTransport !== 'github-api'
+			|| !!(config.owner && config.repo && config.branch));
 	},
 
 
@@ -162,7 +161,7 @@ ZoteroGitHubSync.Prefs = {
 	async isConfigured() {
 		let config = this.getConfig();
 		return this.hasRepoConfig()
-			&& (config.syncMode === 'local-workspace' || !!(await this.getToken()));
+			&& (config.workspaceTransport !== 'github-api' || !!(await this.getToken()));
 	},
 
 
