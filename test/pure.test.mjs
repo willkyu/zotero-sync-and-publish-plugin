@@ -266,9 +266,12 @@ assert.ok(G.executableCandidates('Darwin').includes('/opt/homebrew/bin/git'));
 assert.deepEqual(BN.unsafeMarkdown('# Fine\n\n- [ ] lossy\n\n![[embed.png]]\n'), ['task lists', 'Obsidian embeds']);
 assert.deepEqual(BN.unsafeMarkdown('```md\n- [ ] code\n![[x]]\n```\n> [!note]\n[[Page]]'), []);
 assert.equal(BN.relativePosix('content/papers', 'content/assets/图 1.png'), '../assets/图 1.png');
-assert.equal(BN.readingNoteFilename({ getDisplayTitle: () => 'SensorLM: Learning / Sensors' }, { key: '4GNJSZC3' }), 'SensorLM- Learning - Sensors-4GNJSZC3.md');
+assert.equal(BN.readingNoteFilename({ getDisplayTitle: () => 'SensorLM: Learning / Sensors' }, { key: '4GNJSZC3' }), 'SensorLM Learning Sensors-4GNJSZC3.md');
 assert.equal(BN.isPlaceholderReadingNotePath('content/papers/-4GNJSZC3.md'), true);
 assert.equal(BN.isPlaceholderReadingNotePath('content/papers/SensorLM-4GNJSZC3.md'), false);
+assert.equal(BN.requestedCitationKey({ 'citation-key': 'zhang2025sensorlm' }), 'zhang2025sensorlm');
+assert.equal(BN.requestedCitationKey({ 'citation-key': '' }), null);
+assert.throws(() => BN.requestedCitationKey({ 'citation-key': 'bad key' }), /cannot contain/);
 {
   const events = [];
   let markdownMode = true;
@@ -313,6 +316,26 @@ assert.equal(BN.isPlaceholderReadingNotePath('content/papers/SensorLM-4GNJSZC3.m
   assert.equal(BN.noteIsEmpty({ getNote: () => '<div><p>Text</p></div>' }), false);
   const combined = BN.withMarkdownBody('---\ntags: []\n$itemKey: NOTE0001\n---\nold body\n', '\n\n# Template\n\n- [ ] task\n');
   assert.equal(combined, '---\ntags: []\n$itemKey: NOTE0001\n---\n\n# Template\n\n- [ ] task\n');
+}
+{
+  let citationKey = 'oldKey';
+  let saved = 0;
+  globalThis.Zotero = {
+    ItemFields: { getID: name => name === 'citationKey' ? 1 : 0 },
+    Search: class {
+      addCondition() {}
+      async search() { return []; }
+    },
+  };
+  const parent = {
+    id: 1, libraryID: 1,
+    getField: () => citationKey,
+    setField: (name, value) => { assert.equal(name, 'citationKey'); citationKey = value; },
+    saveTx: async () => { saved++; },
+  };
+  assert.deepEqual(await BN.coordinateCitationKey(parent, { 'citation-key': 'newKey' }), { changed: true });
+  assert.equal(citationKey, 'newKey');
+  assert.equal(saved, 1);
 }
 const bindings = W.validateBindings({ bindings: [
   { library: { type: 'user' }, parentKey: 'PARENT01', noteKey: 'NOTE0001', path: 'content/papers/a.md' },

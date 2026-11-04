@@ -71,7 +71,7 @@
 - 多笔记/多文件歧义会停止，不按标题猜测；
 - 手动打开会先保存当前编辑内容再协调；后台自动同步在可能覆盖仍打开的笔记时会延期。
 
-新阅读笔记文件名使用 `父文献标题-noteKey.md`；标题会清理 Windows 不允许的路径字符，note key 用于避免同名冲突。绑定建立后不会因父文献改名而反复重命名。旧版本产生的 `-NOTEKEY.md` 或 `NOTEKEY.md` 占位文件会在下次手动打开时改成可读名称；若目标名称已经存在则停止并提示，不覆盖文件。
+新阅读笔记文件名使用 `父文献标题-noteKey.md`；Windows 不允许的路径字符替换为空格并合并连续空白，note key 用于避免同名冲突。绑定建立后不会因父文献改名而反复重命名。旧版本产生的 `-NOTEKEY.md` 或 `NOTEKEY.md` 占位文件会在下次手动打开时改成可读名称；若目标名称已经存在则停止并提示，不覆盖文件。
 
 ### 阅读笔记模板与创建入口
 
@@ -114,6 +114,8 @@ zotero-key: "{{itemKey}}"
 ```
 
 初次创建时，插件保留模板的 Markdown 正文原文。任务复选框可以保留在 Obsidian/Quartz 文件中，但 Zotero 富文本没有对应的 checkbox 元素；只要文件仍含任务框，插件会阻止 Zotero→Markdown 覆盖并报告 `unsupported-markdown`，以免复选框被静默降级。
+
+在 Zotero 8+ 中，非空 YAML 字段 `citation-key` 是该绑定文献的显式固定 citation key。Markdown 同步时，插件会检查同一文库内的重复键，然后写入父文献的 Zotero 原生 `citationKey` 字段；当前 Better BibTeX 版本从该字段导出 cite key。空值不会清除现有键，包含空白、逗号或花括号的值会被拒绝。若需要清除或重新自动生成，请在 Zotero/Better BibTeX 中操作，而不要把 YAML 留空当作删除命令。`citekey` 等其他自定义字段仅作为 Quartz 元数据保留，不会更改 Zotero citation key。
 
 ## 图片与 PDF
 

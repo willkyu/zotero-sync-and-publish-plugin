@@ -112,6 +112,7 @@ ZoteroGitHubSync.BetterNotes = {
 
 	readingNoteFilename(parent, note) {
 		let title = parent?.getDisplayTitle?.() || parent?.getField?.('title') || 'Untitled';
+		title = String(title).replace(/[/\\:*?"<>|]/g, ' ');
 		return `${ZoteroGitHubSync.Utils.sanitizeSegment(title, 100)}-${note.key}.md`;
 	},
 
@@ -142,6 +143,42 @@ ZoteroGitHubSync.BetterNotes = {
 		if (/^\s*[-*+]\s+\[[ xX]\]\s/m.test(withoutCode)) reasons.push('task lists');
 		if (/!\[\[[^\]]+\]\]/.test(withoutCode)) reasons.push('Obsidian embeds');
 		return reasons;
+	},
+
+	requestedCitationKey(meta) {
+		if (!meta || !Object.prototype.hasOwnProperty.call(meta, 'citation-key')) return null;
+		let key = String(meta['citation-key'] ?? '').trim();
+		if (!key) return null;
+		if (/\s|[{},]/u.test(key)) throw new Error('citation-key cannot contain whitespace, commas, or braces.');
+		return key;
+	},
+
+	async coordinateCitationKey(parent, meta) {
+		let wanted;
+		try { wanted = this.requestedCitationKey(meta); }
+		catch (e) { return { status: 'invalid-citation-key', pending: 1, warnings: [e.message] }; }
+		if (!wanted) return { changed: false };
+		if (!Zotero.ItemFields?.getID?.('citationKey')) {
+			return { status: 'unsupported-citation-key', pending: 1, warnings: ['This Zotero version has no native citationKey field.'] };
+		}
+		let current = String(parent.getField('citationKey') || '').trim();
+		if (current === wanted) return { changed: false };
+		let search = new Zotero.Search();
+		search.libraryID = parent.libraryID;
+		search.addCondition('citationKey', 'is', wanted);
+		let duplicates = (await search.search()).filter(id => id !== parent.id);
+		if (duplicates.length) {
+			return {
+				status: 'citation-key-conflict', pending: 1,
+				warnings: [`citation-key “${wanted}” is already used by another item in this library.`],
+			};
+		}
+		parent.setField('citationKey', wanted);
+		await parent.saveTx();
+		if (String(parent.getField('citationKey') || '').trim() !== wanted) {
+			return { status: 'citation-key-not-saved', pending: 1, warnings: [`Zotero did not retain citation-key “${wanted}”.`] };
+		}
+		return { changed: true };
 	},
 
 	templateValues(parent, note) {
@@ -475,6 +512,8 @@ ZoteroGitHubSync.BetterNotes = {
 		}
 
 		before = await this.snapshot(note, absolutePath);
+		let citationResult = await this.coordinateCitationKey(parent, before.md?.meta);
+		if (citationResult.pending) return citationResult;
 		if (!binding.md5 && !binding.noteMd5) {
 			// A recovered shared binding is itself the trusted coordination record.
 			binding.md5 = before.md5;
@@ -521,7 +560,12 @@ ZoteroGitHubSync.BetterNotes = {
 		binding.noteVersion = note.version;
 		binding.updated = new Date().toISOString();
 		this.register(note, absolutePath, after);
-		return { status: mdChanged ? 'imported-markdown' : noteChanged ? 'exported-note' : 'up-to-date', pending: 0 };
+		return {
+			status: mdChanged ? 'imported-markdown'
+				: noteChanged ? 'exported-note'
+					: citationResult.changed ? 'updated-citation-key' : 'up-to-date',
+			pending: 0,
+		};
 	},
 
 	async coordinateAll(bindings, config) {
