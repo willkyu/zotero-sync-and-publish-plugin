@@ -266,6 +266,26 @@ assert.ok(G.executableCandidates('Darwin').includes('/opt/homebrew/bin/git'));
 assert.deepEqual(BN.unsafeMarkdown('# Fine\n\n- [ ] lossy\n\n![[embed.png]]\n'), ['task lists', 'Obsidian embeds']);
 assert.deepEqual(BN.unsafeMarkdown('```md\n- [ ] code\n![[x]]\n```\n> [!note]\n[[Page]]'), []);
 assert.equal(BN.relativePosix('content/papers', 'content/assets/图 1.png'), '../assets/图 1.png');
+{
+  const events = [];
+  let markdownMode = true;
+  const editor = {
+    _item: { id: 42 },
+    _iframeWindow: { wrappedJSObject: { getDataSync: () => ({ html: '<p>saved</p>' }) } },
+    _save: async data => events.push(['save', data.html]),
+  };
+  globalThis.Components = { utils: { isDeadWrapper: () => false } };
+  globalThis.Zotero = {
+    Notes: { _editorInstances: [editor] },
+    BetterNotes: { api: { editor: {
+      isMarkdownMode: () => markdownMode,
+      toggleMarkdownMode: async () => { events.push(['toggle']); markdownMode = false; },
+    } } },
+  };
+  assert.equal(await BN.flushNoteEditors(42), 1);
+  assert.deepEqual(events, [['toggle'], ['save', '<p>saved</p>']]);
+  assert.equal((await BN.flushNoteEditors(99)), 0, 'only the requested note editor is flushed');
+}
 const bindings = W.validateBindings({ bindings: [
   { library: { type: 'user' }, parentKey: 'PARENT01', noteKey: 'NOTE0001', path: 'content/papers/a.md' },
   { library: { type: 'user' }, parentKey: 'PARENT02', noteKey: 'NOTE0001', path: 'content/papers/duplicate.md' },

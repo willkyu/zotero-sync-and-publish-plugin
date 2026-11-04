@@ -54,7 +54,7 @@ ZoteroGitHubSync.BetterNotes = {
 
 	activeNoteIDs() {
 		let ids = new Set();
-		for (let editor of Zotero.Notes?._editorInstances || []) {
+		for (let editor of this.editorInstances()) {
 			try {
 				let element = editor._popup?.closest?.('note-editor');
 				let visible = element && !element.hidden && element.getClientRects?.().length;
@@ -63,6 +63,38 @@ ZoteroGitHubSync.BetterNotes = {
 			catch (e) {}
 		}
 		return ids;
+	},
+
+	editorInstances(noteID = null) {
+		return (Zotero.Notes?._editorInstances || []).filter(editor => {
+			try {
+				let win = editor?._iframeWindow;
+				return win && !Components.utils.isDeadWrapper(win)
+					&& (noteID === null || editor._item?.id === noteID);
+			}
+			catch (e) { return false; }
+		});
+	},
+
+	/** Persist pending editor input before handing the note to Obsidian.
+	 * Better Notes Markdown mode owns its own debounce queue, so leave that mode
+	 * through its public API first. Zotero's rich-text saveSync() is fire-and-
+	 * forget; awaiting _save() keeps the Markdown export from racing the save. */
+	async flushNoteEditors(noteID) {
+		let editors = this.editorInstances(noteID);
+		for (let editor of editors) {
+			let editorAPI = this.api?.editor;
+			if (editorAPI?.isMarkdownMode?.(editor)) {
+				await editorAPI.toggleMarkdownMode(editor);
+			}
+			let win = editor._iframeWindow;
+			let noteData = win?.wrappedJSObject?.getDataSync?.(true);
+			if (!noteData) continue;
+			noteData = JSON.parse(JSON.stringify(noteData));
+			if (typeof editor._save === 'function') await editor._save(noteData);
+			else editor.saveSync?.();
+		}
+		return editors.length;
 	},
 
 	md5(value) {
@@ -213,7 +245,7 @@ ZoteroGitHubSync.BetterNotes = {
 		return true;
 	},
 
-	async coordinate(binding, config) {
+	async coordinate(binding, config, options = {}) {
 		let note = await this.resolveItem(binding.library, binding.noteKey);
 		let parent = await this.resolveItem(binding.library, binding.parentKey);
 		if (!note?.isNote?.() || !parent) return { status: 'waiting-identity', pending: 1 };
@@ -223,7 +255,7 @@ ZoteroGitHubSync.BetterNotes = {
 
 		let before = await this.snapshot(note, absolutePath);
 		if (!before.exists) {
-			if (this.activeNoteIDs().has(note.id)) return { status: 'editing', pending: 1 };
+			if (!options.allowVisibleEditor && this.activeNoteIDs().has(note.id)) return { status: 'editing', pending: 1 };
 			await this.exportNote(note, absolutePath);
 		}
 
@@ -238,7 +270,7 @@ ZoteroGitHubSync.BetterNotes = {
 		let mdChanged = before.md5 !== binding.md5;
 		let noteChanged = before.noteMd5 !== binding.noteMd5;
 		if (mdChanged && noteChanged) return { status: 'conflict', pending: 1 };
-		if ((mdChanged || noteChanged) && this.activeNoteIDs().has(note.id)) {
+		if (!options.allowVisibleEditor && (mdChanged || noteChanged) && this.activeNoteIDs().has(note.id)) {
 			return { status: 'editing', pending: 1 };
 		}
 		if (mdChanged) {
@@ -444,10 +476,13 @@ ZoteroGitHubSync.BetterNotes = {
 			binding = await this.createBinding(note, parent, config, bindings, templateMeta);
 			await data.save();
 		}
-		if (this.activeNoteIDs().has(note.id)) throw new Error('The reading note is still open in a Zotero editor. Save/close it before opening the Markdown copy.');
+		await this.flushNoteEditors(note.id);
 		let absolute = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
 		if (!await IOUtils.exists(absolute)) {
-			let result = await this.coordinate(binding, config);
+			// A note selected in Zotero is displayed in a live right-hand editor.
+			// Its pending input was flushed above, so that display alone must not
+			// prevent creation of the Markdown file that is about to be opened.
+			let result = await this.coordinate(binding, config, { allowVisibleEditor: true });
 			if (result.pending) throw new Error(`Reading note is not ready: ${result.status}`);
 			await data.save();
 		}

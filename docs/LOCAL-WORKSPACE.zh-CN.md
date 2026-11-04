@@ -61,6 +61,9 @@
 
 可在 Zotero 文献、PDF 附件或原生笔记上右键选择 **Open Reading Note in Obsidian**，或按 `Ctrl+Alt+O`（macOS 为 `Cmd+Option+O`）：
 
+- 仅在 Zotero 右侧面板中显示该笔记不会阻止打开。插件会先保存尚未落盘的编辑，再交给 Obsidian。
+- 无需、也不建议全局禁用 Zotero 的笔记编辑器；后台同步在可能覆盖一个仍打开的笔记时仍会延期。
+
 - 已绑定时复用文件；
 - 只有一个原生子笔记时导出并绑定；
 - Markdown frontmatter 的 `$itemKey` 能唯一指向子笔记时恢复绑定；
