@@ -110,6 +110,32 @@ ZoteroGitHubSync.BetterNotes = {
 		return [...from.map(() => '..'), ...to].join('/') || '.';
 	},
 
+	readingNoteFilename(parent, note) {
+		let title = parent?.getDisplayTitle?.() || parent?.getField?.('title') || 'Untitled';
+		return `${ZoteroGitHubSync.Utils.sanitizeSegment(title, 100)}-${note.key}.md`;
+	},
+
+	isPlaceholderReadingNotePath(path) {
+		return /^-?[A-Z0-9]{8}\.md$/i.test(String(path || '').split('/').pop() || '');
+	},
+
+	async ensureReadableBindingPath(note, parent, binding, config) {
+		if (!this.isPlaceholderReadingNotePath(binding.path)) return false;
+		let papers = ZoteroGitHubSync.Workspace.resolve(config, config.papersPath);
+		let wanted = PathUtils.join(papers, this.readingNoteFilename(parent, note));
+		let current = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
+		if (current.toLowerCase() === wanted.toLowerCase()) return false;
+		if (await IOUtils.exists(wanted)) {
+			throw new Error(`Cannot rename the reading note because the target already exists: ${PathUtils.filename(wanted)}`);
+		}
+		if (await IOUtils.exists(current)) await IOUtils.move(current, wanted, { noOverwrite: true });
+		binding.path = ZoteroGitHubSync.Workspace.relative(config, wanted);
+		binding.updated = new Date().toISOString();
+		let snapshot = await this.snapshot(note, wanted);
+		this.register(note, wanted, snapshot);
+		return true;
+	},
+
 	unsafeMarkdown(markdown) {
 		let withoutCode = String(markdown || '').replace(/```[\s\S]*?```|`[^`\n]*`/g, '');
 		let reasons = [];
@@ -576,8 +602,11 @@ ZoteroGitHubSync.BetterNotes = {
 	async createBinding(note, parent, config, bindings, template = null) {
 		let papers = ZoteroGitHubSync.Workspace.resolve(config, config.papersPath);
 		await IOUtils.makeDirectory(papers, { ignoreExisting: true });
-		let filename = await this.api.sync.getMDFileName(note.id, papers);
+		let filename = this.readingNoteFilename(parent, note);
 		let absolutePath = PathUtils.join(papers, filename);
+		if (await IOUtils.exists(absolutePath)) {
+			throw new Error(`A reading-note file already exists for the new note: ${filename}`);
+		}
 		await this.exportNote(note, absolutePath, template?.meta || null);
 		if (template) await this.preserveTemplateBody(absolutePath, template.content);
 		let path = ZoteroGitHubSync.Workspace.relative(config, absolutePath);
@@ -687,6 +716,7 @@ ZoteroGitHubSync.BetterNotes = {
 				await data.save();
 			}
 		}
+		if (await this.ensureReadableBindingPath(note, parent, binding, config)) await data.save();
 		await this.flushNoteEditors(note.id);
 		let absolute = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
 		// A note selected in Zotero is displayed in a live right-hand editor.

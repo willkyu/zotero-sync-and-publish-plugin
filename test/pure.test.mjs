@@ -266,6 +266,9 @@ assert.ok(G.executableCandidates('Darwin').includes('/opt/homebrew/bin/git'));
 assert.deepEqual(BN.unsafeMarkdown('# Fine\n\n- [ ] lossy\n\n![[embed.png]]\n'), ['task lists', 'Obsidian embeds']);
 assert.deepEqual(BN.unsafeMarkdown('```md\n- [ ] code\n![[x]]\n```\n> [!note]\n[[Page]]'), []);
 assert.equal(BN.relativePosix('content/papers', 'content/assets/图 1.png'), '../assets/图 1.png');
+assert.equal(BN.readingNoteFilename({ getDisplayTitle: () => 'SensorLM: Learning / Sensors' }, { key: '4GNJSZC3' }), 'SensorLM- Learning - Sensors-4GNJSZC3.md');
+assert.equal(BN.isPlaceholderReadingNotePath('content/papers/-4GNJSZC3.md'), true);
+assert.equal(BN.isPlaceholderReadingNotePath('content/papers/SensorLM-4GNJSZC3.md'), false);
 {
   const events = [];
   let markdownMode = true;
