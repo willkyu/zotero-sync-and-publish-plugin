@@ -302,8 +302,14 @@ assert.equal(BN.relativePosix('content/papers', 'content/assets/图 1.png'), '..
   };
   const rendered = BN.renderTemplate('# {{title}}\n{{authors}} | {{year}} | {{DOI}} | {{citationKey}} | {{noteKey}}', parent, { key: 'NOTE0001' });
   assert.equal(rendered, '# A Paper\nAda Lovelace | 2025 | 10.1/example | lovelace2025 | NOTE0001');
+  assert.equal(BN.formatTemplateDate('YYYY-MM-DD', new Date(2026, 10, 4, 15, 7, 9)), '2026-11-04');
+  assert.equal(BN.renderTemplate('{{date:YYYY-MM-DD}}', parent, { key: 'NOTE0001' }).length, 10);
   assert.throws(() => BN.renderTemplate('{{missing}}', parent, { key: 'NOTE0001' }), /Unknown reading-note template variable/);
-  assert.throws(() => BN.renderTemplate('{{date:YYYY-MM-DD}}', parent, { key: 'NOTE0001' }), /date:YYYY-MM-DD/);
+  assert.throws(() => BN.renderTemplate('{{date:MMMM D}}', parent, { key: 'NOTE0001' }), /Unsupported reading-note date format/);
+  assert.equal(BN.noteIsEmpty({ getNote: () => '<div data-schema-version="9"><p><br></p></div>' }), true);
+  assert.equal(BN.noteIsEmpty({ getNote: () => '<div><p>Text</p></div>' }), false);
+  const combined = BN.withMarkdownBody('---\ntags: []\n$itemKey: NOTE0001\n---\nold body\n', '\n\n# Template\n\n- [ ] task\n');
+  assert.equal(combined, '---\ntags: []\n$itemKey: NOTE0001\n---\n\n# Template\n\n- [ ] task\n');
 }
 const bindings = W.validateBindings({ bindings: [
   { library: { type: 'user' }, parentKey: 'PARENT01', noteKey: 'NOTE0001', path: 'content/papers/a.md' },

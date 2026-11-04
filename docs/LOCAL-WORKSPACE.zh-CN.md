@@ -73,7 +73,7 @@
 
 ### 阅读笔记模板与创建入口
 
-模板仅用于**新建**主阅读笔记。请选中文献或其 PDF，然后使用插件菜单 **Open Reading Note in Obsidian**；当该文献没有任何子笔记和既有绑定时，插件才会创建 Zotero 子笔记、渲染模板、建立绑定并打开 Obsidian。不要先使用 Zotero 自带的“添加笔记”创建空笔记：插件会把它视为已有笔记并保留原文，不再用模板覆盖。
+模板用于**新建**主阅读笔记，也会修复原生笔记和绑定 Markdown 正文均完全为空的旧失败记录。请选中文献或其 PDF，然后使用插件菜单 **Open Reading Note in Obsidian**；当该文献没有子笔记和既有绑定时，插件会创建 Zotero 子笔记、渲染模板、建立绑定并打开 Obsidian。已有非空笔记始终保留原文，不会被模板覆盖。
 
 模板是普通 Markdown 文件，可使用以下变量：
 
@@ -84,7 +84,7 @@
 | `{{creators}}` | 所有 creator（分号分隔） |
 | `{{authorsYaml}}`、`{{creatorsYaml}}` | 可直接放入 YAML 的 JSON 数组 |
 | `{{date}}`、`{{year}}` | 文献日期、从文献日期提取的年份；另有 `dateYaml` |
-| `{{today}}`、`{{now}}` | 创建当天 `YYYY-MM-DD`、ISO 时间 |
+| `{{today}}`、`{{now}}` | 创建当天 `YYYY-MM-DD`、ISO 时间；也支持 Obsidian 风格的 `{{date:YYYY-MM-DD}}`，可用 `YYYY YY MM DD HH mm ss` |
 | `{{tags}}`、`{{collections}}` | 标签、分类列表的文本形式 |
 | `{{tagsYaml}}`、`{{collectionsYaml}}` | 可直接放入 YAML 的 JSON 数组 |
 | `{{itemType}}`、`{{itemKey}}`、`{{noteKey}}` | Zotero 类型、父文献 key、新子笔记 key |
@@ -110,6 +110,8 @@ zotero-key: "{{itemKey}}"
 
 ## 阅读笔记
 ```
+
+初次创建时，插件保留模板的 Markdown 正文原文。任务复选框可以保留在 Obsidian/Quartz 文件中，但 Zotero 富文本没有对应的 checkbox 元素；只要文件仍含任务框，插件会阻止 Zotero→Markdown 覆盖并报告 `unsupported-markdown`，以免复选框被静默降级。
 
 ## 图片与 PDF
 

@@ -57,7 +57,7 @@
 				<label value="Default reading-note template"/><html:input id="zgs-template-path" type="text" flex="1" preference="extensions.zotero-github-sync.noteTemplatePath"/>
 				<button label="Choose Markdown…" oncommand="ZoteroGitHubSyncPrefs.chooseTemplate()"/>
 			</hbox>
-			<html:div class="zgs-hint">Applied only when “Open Reading Note in Obsidian” creates a new Zotero child note. Supports {{title}}, {{authors}}, {{year}}, {{itemKey}}, {{noteKey}}, Zotero field names, and the variables documented in the Chinese guide.</html:div>
+			<html:div class="zgs-hint">Applied when “Open Reading Note in Obsidian” creates a new child note, or repairs a completely empty note. Supports {{title}}, {{authors}}, {{year}}, {{date:YYYY-MM-DD}}, Zotero field names, and the variables documented in the Chinese guide.</html:div>
 			<hbox>
 				<button label="Validate workspace" oncommand="ZoteroGitHubSyncPrefs.testWorkspace()"/>
 				<button id="zgs-pause" label="Pause automation" oncommand="ZoteroGitHubSyncPrefs.togglePause()"/>

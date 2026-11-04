@@ -171,10 +171,25 @@ ZoteroGitHubSync.BetterNotes = {
 		};
 	},
 
+	formatTemplateDate(format, date = new Date()) {
+		if (!/^(?:(?:YYYY|YY|MM|DD|HH|mm|ss)|[^A-Za-z])+$/.test(format)) {
+			throw new Error(`Unsupported reading-note date format: ${format}`);
+		}
+		let pad = value => String(value).padStart(2, '0');
+		let tokens = {
+			YYYY: String(date.getFullYear()), YY: String(date.getFullYear()).slice(-2),
+			MM: pad(date.getMonth() + 1), DD: pad(date.getDate()),
+			HH: pad(date.getHours()), mm: pad(date.getMinutes()), ss: pad(date.getSeconds()),
+		};
+		return format.replace(/YYYY|YY|MM|DD|HH|mm|ss/g, token => tokens[token]);
+	},
+
 	renderTemplate(markdown, parent, note) {
 		let values = this.templateValues(parent, note);
 		let unknown = new Set();
-		let rendered = String(markdown || '').replace(/\{\{\s*([A-Za-z][A-Za-z0-9_-]*)\s*\}\}/g, (match, name) => {
+		let rendered = String(markdown || '').replace(/\{\{\s*date:([^{}\n]+?)\s*\}\}/g,
+			(match, format) => this.formatTemplateDate(format.trim()));
+		rendered = rendered.replace(/\{\{\s*([A-Za-z][A-Za-z0-9_-]*)\s*\}\}/g, (match, name) => {
 			if (Object.prototype.hasOwnProperty.call(values, name)) return values[name];
 			try {
 				if (Zotero.ItemFields?.getID?.(name)) return String(parent.getField(name) || '');
@@ -188,6 +203,14 @@ ZoteroGitHubSync.BetterNotes = {
 		return rendered;
 	},
 
+	noteIsEmpty(note) {
+		let html = String(note?.getNote?.() || '');
+		if (/<(?:img|svg|math|table|ul|ol|li|blockquote|pre|iframe|object|embed)\b/i.test(html)) return false;
+		let text = html.replace(/<!--[^]*?-->/g, '').replace(/<[^>]+>/g, '')
+			.replace(/&nbsp;|&#160;|\s/gi, '');
+		return !text;
+	},
+
 	async applyTemplate(note, parent, templatePath) {
 		let source = await Zotero.File.getContentsAsync(templatePath, 'utf-8');
 		let rendered = this.renderTemplate(source, parent, note);
@@ -196,15 +219,50 @@ ZoteroGitHubSync.BetterNotes = {
 		let tmpPath = `${renderedPath}.tmp`;
 		try {
 			await IOUtils.write(renderedPath, new TextEncoder().encode(rendered), { tmpPath });
-			let templateMeta = (await this.api.sync.getMDStatus(renderedPath)).meta;
+			let templateStatus = await this.api.sync.getMDStatus(renderedPath);
 			let imported = await this.api.$import.fromMD(renderedPath, { noteId: note.id, ignoreVersion: true });
 			if (!imported) throw new Error('Better Notes did not import the rendered reading-note template.');
-			return templateMeta;
+			return { meta: templateStatus.meta, content: templateStatus.content };
 		}
 		finally {
 			await IOUtils.remove(tmpPath, { ignoreAbsent: true });
 			await IOUtils.remove(renderedPath, { ignoreAbsent: true });
 		}
+	},
+
+	withMarkdownBody(exported, content) {
+		let match = String(exported || '').match(/^---\r?\n[^]*?\r?\n---(?:\r?\n)?/);
+		if (!match) return String(content || '');
+		let header = match[0].replace(/\r\n/g, '\n').replace(/\n+$/, '');
+		let body = String(content || '').replace(/\r\n/g, '\n');
+		return `${header}${body.startsWith('\n') ? '' : '\n'}${body}`;
+	},
+
+	async preserveTemplateBody(absolutePath, content) {
+		let exported = await Zotero.File.getContentsAsync(absolutePath, 'utf-8');
+		let combined = this.withMarkdownBody(exported, content);
+		let tmpPath = `${absolutePath}.zqws-tmp`;
+		await IOUtils.remove(tmpPath, { ignoreAbsent: true });
+		await IOUtils.write(absolutePath, new TextEncoder().encode(combined), { tmpPath });
+	},
+
+	async repairEmptyTemplateBinding(note, parent, binding, config) {
+		if (!this.noteIsEmpty(note) || !config.noteTemplatePath
+			|| !await IOUtils.exists(config.noteTemplatePath)) return false;
+		let absolutePath = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
+		if (await IOUtils.exists(absolutePath)) {
+			let status = await this.api.sync.getMDStatus(absolutePath);
+			if (String(status.content || '').trim()) return false;
+		}
+		let template = await this.applyTemplate(note, parent, config.noteTemplatePath);
+		await this.exportNote(note, absolutePath, template.meta);
+		await this.preserveTemplateBody(absolutePath, template.content);
+		let snapshot = await this.snapshot(note, absolutePath);
+		binding.md5 = snapshot.md5;
+		binding.noteMd5 = snapshot.noteMd5;
+		binding.noteVersion = note.version;
+		binding.updated = new Date().toISOString();
+		return true;
 	},
 
 	async snapshot(note, absolutePath) {
@@ -362,7 +420,7 @@ ZoteroGitHubSync.BetterNotes = {
 		if (!options.allowVisibleEditor && (mdChanged || noteChanged) && this.activeNoteIDs().has(note.id)) {
 			return { status: 'editing', pending: 1 };
 		}
-		if (mdChanged) {
+		if (mdChanged || noteChanged) {
 			let unsafe = this.unsafeMarkdown(before.md?.content || '');
 			if (unsafe.length) return { status: 'unsupported-markdown', pending: 1, warnings: [`${binding.path}: ${unsafe.join(', ')}`] };
 		}
@@ -473,12 +531,13 @@ ZoteroGitHubSync.BetterNotes = {
 		return { added, warnings };
 	},
 
-	async createBinding(note, parent, config, bindings, cachedMeta = null) {
+	async createBinding(note, parent, config, bindings, template = null) {
 		let papers = ZoteroGitHubSync.Workspace.resolve(config, config.papersPath);
 		await IOUtils.makeDirectory(papers, { ignoreExisting: true });
 		let filename = await this.api.sync.getMDFileName(note.id, papers);
 		let absolutePath = PathUtils.join(papers, filename);
-		await this.exportNote(note, absolutePath, cachedMeta);
+		await this.exportNote(note, absolutePath, template?.meta || null);
+		if (template) await this.preserveTemplateBody(absolutePath, template.content);
 		let path = ZoteroGitHubSync.Workspace.relative(config, absolutePath);
 		let snapshot = await this.snapshot(note, absolutePath);
 		let binding = {
@@ -550,27 +609,34 @@ ZoteroGitHubSync.BetterNotes = {
 			let notes = Zotero.Items.get(parent.getNotes(false) || []).filter(n => n?.isNote?.() && !n.deleted);
 			if (notes.length > 1) throw new Error('This item has multiple notes and no binding. Bind one explicitly before opening to avoid duplicates.');
 			note = notes[0] || null;
-			let templateMeta = null;
+			let template = null;
+			let createdNote = false;
 			if (!note) {
 				note = new Zotero.Item('note');
 				note.libraryID = parent.libraryID;
 				note.parentID = parent.id;
 				note.setNote('<div data-schema-version="9"><p></p></div>');
 				await note.saveTx();
-				if (config.noteTemplatePath && await IOUtils.exists(config.noteTemplatePath)) {
-					try {
-						templateMeta = await this.applyTemplate(note, parent, config.noteTemplatePath);
-					}
-					catch (e) {
+				createdNote = true;
+			}
+			if (this.noteIsEmpty(note) && config.noteTemplatePath && await IOUtils.exists(config.noteTemplatePath)) {
+				try {
+					template = await this.applyTemplate(note, parent, config.noteTemplatePath);
+				}
+				catch (e) {
+					if (createdNote) {
 						// Do not leave a new blank note that would suppress the template
 						// on the next attempt. Keep the failed note recoverable in Trash.
 						note.deleted = true;
 						await note.saveTx();
-						throw e;
 					}
+					throw e;
 				}
 			}
-			binding = await this.createBinding(note, parent, config, bindings, templateMeta);
+			binding = await this.createBinding(note, parent, config, bindings, template);
+			await data.save();
+		}
+		else if (await this.repairEmptyTemplateBinding(note, parent, binding, config)) {
 			await data.save();
 		}
 		await this.flushNoteEditors(note.id);
