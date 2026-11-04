@@ -9,6 +9,8 @@ globalThis.ZoteroGitHubSync = { log(){}, warn(){}, logError: console.error, vers
 for (const f of ['utils.js', 'prefs.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'workspace-api.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
 const U = ZoteroGitHubSync.Utils, E = ZoteroGitHubSync.Exporter, I = ZoteroGitHubSync.Importer;
 const G = ZoteroGitHubSync.LocalGit, API = ZoteroGitHubSync.WorkspaceAPITransport, BN = ZoteroGitHubSync.BetterNotes, W = ZoteroGitHubSync.Workspace;
+assert.equal(W.transportChangedCount({ uploaded: 4, deletedRemote: 1 }), 5, 'API result counts uploaded and deleted files');
+assert.equal(W.transportChangedCount({ changed: ['content/a.md', 'zotero/item.json'] }), 2, 'system Git result counts committed paths');
 assert.deepEqual(
   [...API.parseGitIndex('100644 c1ae6de52f690855b90cb421456e9eaa6db7698d 0\tcontent/templates/paper.md\0' +
     '100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 2\tcontent/conflict.md\0')],

@@ -127,6 +127,11 @@ ZoteroGitHubSync.Workspace = {
 		return bindings.sort((a, b) => a.path.localeCompare(b.path));
 	},
 
+	transportChangedCount(result) {
+		if (Array.isArray(result?.changed)) return result.changed.length;
+		return (Number(result?.uploaded) || 0) + (Number(result?.deletedRemote) || 0);
+	},
+
 	async loadBindings(config) {
 		let path = this.bindingPath(config);
 		try {
@@ -479,6 +484,8 @@ ZoteroGitHubSync.Workspace = {
 		let status = remote
 			? (pending ? 'pending' : (transportResult.status === 'pushed' ? 'pushed' : transportResult.status))
 			: localStatus;
+		let localChanged = changed.length + removedMirror.length;
+		let remoteChanged = remote ? this.transportChangedCount(transportResult) : 0;
 		ZoteroGitHubSync.Prefs.set('localStatus', JSON.stringify({
 			status: localStatus,
 			pending: localPending,
@@ -488,6 +495,7 @@ ZoteroGitHubSync.Workspace = {
 			status,
 			transport: config.workspaceTransport,
 			remote: transportResult.status,
+			changed: remoteChanged,
 			pending,
 			at: new Date().toISOString(),
 		}));
@@ -497,7 +505,9 @@ ZoteroGitHubSync.Workspace = {
 		this._pollFingerprint = await this.fingerprint(config);
 		return {
 			status,
-			added: changed.length + removedMirror.length,
+			added: remote ? remoteChanged : localChanged,
+			localChanged,
+			remoteChanged,
 			updated: imported.updated + imported.created,
 			deleted: transportResult.deletedRemote || 0,
 			commit: transportResult.commit || null,

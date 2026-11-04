@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] — 2026-11-04
+
+### Fixed
+
+- Cloud sync completion now reports the GitHub API upload/delete count (or committed System Git paths) instead of only counting Zotero mirror files rewritten locally.
+
 ## [1.2.2] — 2026-11-04
 
 ### Fixed
