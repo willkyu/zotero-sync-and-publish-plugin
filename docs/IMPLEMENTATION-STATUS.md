@@ -8,7 +8,7 @@ Updated: 2026-11-04
 - Configurable repository, Git executable, remote, branch, commit scope, papers/assets/Vault/template paths.
 - Local deterministic JSON export, atomic writes, safe managed-file list and conservative three-way import.
 - Empty-library bootstrap by stable keys plus automatic, baseline-backed local deletion propagation.
-- Better Notes 3.3.3 adapter, shared bindings, hash-based direction choice, visible-editor flushing/refresh and post-call completion checks.
+- Better Notes 3.3.3 adapter, shared bindings, recursive `$itemKey` relocation recovery, hash-based direction choice, visible-editor flushing/refresh and post-call completion checks.
 - Separate image/PDF policy, image byte hashes, missing-storage repair and same-name update detection.
 - Standard Obsidian `open` URI from context menu and keyboard shortcut; reuse/recover/create behavior.
 - Always-on local Zotero/workspace coordination, separate GitHub startup/interval/change/manual triggers, and queued events during a running operation.
@@ -21,7 +21,7 @@ Updated: 2026-11-04
 ## Actually tested in this environment
 
 - JavaScript syntax checks for all runtime modules.
-- Pure tests for planner behavior, stable serialization, path traversal, binding uniqueness, unsafe Markdown detection, Obsidian-relative image paths and Git porcelain parsing.
+- Pure tests for planner behavior, stable serialization, path traversal, binding uniqueness, nested-note relocation and ambiguity protection, unsafe Markdown detection, Obsidian-relative image paths and Git porcelain parsing.
 - Real Git CLI test with temporary bare remote and three clones: fast-forward receive, dirty-tree protection, existing staged-content refusal, scoped commit, non-managed file exclusion and push.
 - In-memory GitHub remote integration test: initial two-way transfer, independent local/remote edits, commit, and same-file conflict preservation.
 - Existing upstream pure tests continue to pass.

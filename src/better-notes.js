@@ -498,6 +498,9 @@ ZoteroGitHubSync.BetterNotes = {
 	},
 
 	async coordinate(binding, config, options = {}) {
+		if (options.relocationConflict) {
+			return { status: 'markdown-move-conflict', pending: 1, warnings: [options.relocationConflict] };
+		}
 		let note = await this.resolveItem(binding.library, binding.noteKey);
 		let parent = await this.resolveItem(binding.library, binding.parentKey);
 		if (!parent) return { status: 'waiting-identity', pending: 1 };
@@ -622,7 +625,7 @@ ZoteroGitHubSync.BetterNotes = {
 		};
 	},
 
-	async coordinateAll(bindings, config) {
+	async coordinateAll(bindings, config, options = {}) {
 		if (!this.available()) {
 			return { pending: bindings.length, warnings: bindings.length ? ['Better Notes 3.3.x is not installed or its public API is unavailable.'] : [], results: [] };
 		}
@@ -631,7 +634,9 @@ ZoteroGitHubSync.BetterNotes = {
 		let removed = new Set();
 		for (let binding of bindings) {
 			try {
-				let result = await this.coordinate(binding, config);
+				let result = await this.coordinate(binding, config, {
+					relocationConflict: options.relocationConflicts?.get(binding),
+				});
 				if (result.deletion) result = await this.applyDeletion(binding, result, config);
 				if (result.removeBinding) removed.add(binding);
 				results.push({ path: binding.path, ...result });
@@ -648,10 +653,59 @@ ZoteroGitHubSync.BetterNotes = {
 		return { results, warnings, pending: results.reduce((n, r) => n + (r.pending || 0), 0) };
 	},
 
+	async reconcileMovedBindings(bindings, config) {
+		let missing = [];
+		for (let binding of bindings) {
+			let current = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
+			if (!await IOUtils.exists(current)) missing.push(binding);
+		}
+		let relocationConflicts = new Map();
+		if (!missing.length) return { moved: 0, relocationConflicts };
+
+		let papers = ZoteroGitHubSync.Workspace.resolve(config, config.papersPath);
+		let candidatesByKey = new Map();
+		for (let file of await ZoteroGitHubSync.Workspace.listFiles(papers)) {
+			if (!/\.md$/i.test(file.path)) continue;
+			let md = await this.api.sync.getMDStatus(file.absolute);
+			let key = String(md.meta?.$itemKey || '');
+			if (!/^[A-Z0-9]{8}$/.test(key)) continue;
+			let path = ZoteroGitHubSync.Workspace.relative(config, file.absolute);
+			if (!candidatesByKey.has(key)) candidatesByKey.set(key, []);
+			candidatesByKey.get(key).push({ path });
+		}
+
+		let claimedPaths = new Map(bindings.map(binding => [binding.path.toLowerCase(), binding]));
+		let moved = 0;
+		for (let binding of missing) {
+			let candidates = candidatesByKey.get(binding.noteKey) || [];
+			let available = candidates.filter(candidate => {
+				let owner = claimedPaths.get(candidate.path.toLowerCase());
+				return !owner || owner === binding;
+			});
+			if (candidates.length === 1 && available.length === 1) {
+				let candidate = available[0];
+				claimedPaths.delete(binding.path.toLowerCase());
+				binding.path = candidate.path;
+				binding.updated = new Date().toISOString();
+				claimedPaths.set(candidate.path.toLowerCase(), binding);
+				moved++;
+				continue;
+			}
+			if (candidates.length) {
+				let paths = candidates.map(candidate => candidate.path).join(', ');
+				relocationConflicts.set(binding, ZoteroGitHubSync.getString(
+					'note.moveConflict', binding.path, paths
+				));
+			}
+		}
+		return { moved, relocationConflicts };
+	},
+
 	async discoverBindings(bindings, config) {
 		if (!this.available()) return { added: 0, warnings: [] };
 		let warnings = [];
 		let added = 0;
+		let relocated = await this.reconcileMovedBindings(bindings, config);
 		let knownNotes = new Set(bindings.map(b => `${JSON.stringify(b.library)}:${b.noteKey}`));
 		let knownPaths = new Set(bindings.map(b => b.path.toLowerCase()));
 		let add = async (note, absolutePath) => {
@@ -700,7 +754,10 @@ ZoteroGitHubSync.BetterNotes = {
 			if (candidates.length === 1) await add(candidates[0], file.absolute);
 			else if (candidates.length > 1) warnings.push(`${file.path}: note key is ambiguous across libraries`);
 		}
-		return { added, warnings };
+		return {
+			added, warnings, moved: relocated.moved,
+			relocationConflicts: relocated.relocationConflicts,
+		};
 	},
 
 	async createBinding(note, parent, config, bindings, template = null) {

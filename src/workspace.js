@@ -438,7 +438,9 @@ ZoteroGitHubSync.Workspace = {
 		let discovered = await ZoteroGitHubSync.BetterNotes.discoverBindings(bindings, config);
 		warnings.push(...discovered.warnings);
 		pending += discovered.warnings.length;
-		let noteResult = await ZoteroGitHubSync.BetterNotes.coordinateAll(bindings, config);
+		let noteResult = await ZoteroGitHubSync.BetterNotes.coordinateAll(bindings, config, {
+			relocationConflicts: discovered.relocationConflicts,
+		});
 		pending += noteResult.pending;
 		warnings.push(...noteResult.warnings);
 		await this.saveBindings(config, bindings);

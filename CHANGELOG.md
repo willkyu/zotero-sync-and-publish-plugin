@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] — 2026-11-04
+
+### Added
+
+- Bound reading notes moved or renamed anywhere below the configured `papers` folder are now rediscovered by their stable `$itemKey`; nested folders are supported and the binding path and relative image links are updated automatically.
+- Ambiguous moves are held for review without invoking the automatic delete-wins policy.
+
 ## [1.4.0] — 2026-11-04
 
 ### Added

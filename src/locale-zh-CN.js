@@ -97,6 +97,7 @@ ZoteroGitHubSync._strings['zh-CN'] = {
 	'progress.layerCancelled': '%S已取消。已保存的文件会保留。',
 	'error.notConfigured': '请先在“设置 → Sync & Publish”中设置 GitHub Token、所有者和仓库。',
 	'error.localWorkspaceNotConfigured': '请先配置本地工作区的仓库路径。',
+	'note.moveConflict': '%S：原绑定的 Markdown 路径已不存在，但有多个文件或已绑定文件具有相同笔记标识（%S）；为安全起见未执行删除。',
 	'error.noItems': '未选择任何条目。',
 	'error.running': '已有同步任务正在运行。',
 	'confirm.pullTitle': '从 GitHub 导入',

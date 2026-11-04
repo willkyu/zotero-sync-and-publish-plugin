@@ -378,12 +378,93 @@ assert.ok(G.executableCandidates('Darwin').includes('/opt/homebrew/bin/git'));
 assert.deepEqual(BN.unsafeMarkdown('# Fine\n\n- [ ] lossy\n\n![[embed.png]]\n'), ['task lists', 'Obsidian embeds']);
 assert.deepEqual(BN.unsafeMarkdown('```md\n- [ ] code\n![[x]]\n```\n> [!note]\n[[Page]]'), []);
 assert.equal(BN.relativePosix('content/papers', 'content/assets/图 1.png'), '../assets/图 1.png');
+assert.equal(BN.relativePosix('content/papers/Methods/Sensors', 'content/assets/图 1.png'), '../../../assets/图 1.png');
 assert.equal(BN.readingNoteFilename({ getDisplayTitle: () => 'SensorLM: Learning / Sensors' }, { key: '4GNJSZC3' }), 'SensorLM Learning Sensors-4GNJSZC3.md');
 assert.equal(BN.isPlaceholderReadingNotePath('content/papers/-4GNJSZC3.md'), true);
 assert.equal(BN.isPlaceholderReadingNotePath('content/papers/SensorLM-4GNJSZC3.md'), false);
 assert.equal(BN.requestedCitationKey({ 'citation-key': 'zhang2025sensorlm' }), 'zhang2025sensorlm');
 assert.equal(BN.requestedCitationKey({ 'citation-key': '' }), null);
 assert.throws(() => BN.requestedCitationKey({ 'citation-key': 'bad key' }), /cannot contain/);
+{
+  const originals = {
+    resolve: W.resolve, relative: W.relative, listFiles: W.listFiles,
+    resolveItem: BN.resolveItem, snapshot: BN.snapshot, coordinateImages: BN.coordinateImages,
+    coordinateCitationKey: BN.coordinateCitationKey, register: BN.register, exportNote: BN.exportNote,
+    rewriteImageLinks: BN.rewriteImageLinks, activeNoteIDs: BN.activeNoteIDs,
+    IOUtils: globalThis.IOUtils, Zotero: globalThis.Zotero,
+  };
+  let files = [{
+    path: 'Methods/Sensors/Paper-NOTE0001.md',
+    absolute: 'C:/ws/content/papers/Methods/Sensors/Paper-NOTE0001.md',
+  }];
+  const metadata = new Map([[files[0].absolute, { meta: { $itemKey: 'NOTE0001', $libraryID: 1 }, content: '# edited after move' }]]);
+  try {
+    W.resolve = (_config, path) => `C:/ws/${path}`;
+    W.relative = (_config, path) => path.replace('C:/ws/', '');
+    W.listFiles = async () => files;
+    const note = { id: 42, key: 'NOTE0001', libraryID: 1, version: 2, deleted: false, isNote: () => true };
+    const parent = { key: 'PARENT01', deleted: false };
+    BN.resolveItem = async (_library, key) => key === 'PARENT01' ? parent : note;
+    globalThis.IOUtils = { exists: async path => !path.endsWith('/Original-NOTE0001.md') };
+    let imported = 0;
+    globalThis.Zotero = { BetterNotes: { api: {
+      sync: { getMDStatus: async path => metadata.get(path) },
+      $import: { fromMD: async () => { imported++; return true; } },
+    } } };
+
+    const binding = {
+      library: { type: 'user' }, parentKey: 'PARENT01', noteKey: 'NOTE0001',
+      path: 'content/papers/Original-NOTE0001.md', md5: 'original-base', noteMd5: 'note-base',
+    };
+    const moved = await BN.reconcileMovedBindings([binding], { papersPath: 'content/papers' });
+    assert.equal(moved.moved, 1, 'a uniquely identified Markdown file is recognized after an external move');
+    assert.equal(binding.path, 'content/papers/Methods/Sensors/Paper-NOTE0001.md');
+    assert.equal(binding.md5, 'original-base', 'relocation preserves the old content baseline so edits are still detected');
+    assert.equal(moved.relocationConflicts.size, 0);
+    BN.snapshot = async () => ({
+      exists: true, md: { content: '# edited after move', meta: {} },
+      md5: 'edited-hash', noteMd5: 'note-base',
+    });
+    BN.coordinateImages = async () => ({ pending: [], changed: false });
+    BN.coordinateCitationKey = async () => ({ changed: false });
+    BN.register = () => {};
+    BN.exportNote = async () => {};
+    BN.rewriteImageLinks = async () => false;
+    BN.activeNoteIDs = () => new Set();
+    const coordinated = await BN.coordinate(binding, { includeNoteImagesLocal: false });
+    assert.equal(imported, 1, 'an edit made while moving is imported from the relocated Markdown file');
+    assert.equal(coordinated.status, 'imported-markdown');
+
+    const ambiguous = {
+      library: { type: 'user' }, parentKey: 'PARENT01', noteKey: 'NOTE0001',
+      path: 'content/papers/Original-NOTE0001.md', md5: 'base', noteMd5: 'note-base',
+    };
+    files = [
+      { path: 'A/Paper-NOTE0001.md', absolute: 'C:/ws/content/papers/A/Paper-NOTE0001.md' },
+      { path: 'B/Paper-NOTE0001.md', absolute: 'C:/ws/content/papers/B/Paper-NOTE0001.md' },
+    ];
+    metadata.clear();
+    for (const file of files) metadata.set(file.absolute, { meta: { $itemKey: 'NOTE0001', $libraryID: 1 }, content: '# duplicate' });
+    const blocked = await BN.reconcileMovedBindings([ambiguous], { papersPath: 'content/papers' });
+    assert.equal(blocked.moved, 0);
+    assert.equal(ambiguous.path, 'content/papers/Original-NOTE0001.md');
+    assert.ok(blocked.relocationConflicts.has(ambiguous), 'ambiguous moves are blocked instead of becoming deletions');
+    const protectedResult = await BN.coordinate(ambiguous, {}, {
+      relocationConflict: blocked.relocationConflicts.get(ambiguous),
+    });
+    assert.equal(protectedResult.status, 'markdown-move-conflict');
+    assert.equal(protectedResult.pending, 1);
+    assert.equal(protectedResult.deletion, undefined, 'an ambiguous relocation never invokes delete-wins');
+  }
+  finally {
+    W.resolve = originals.resolve; W.relative = originals.relative; W.listFiles = originals.listFiles;
+    BN.resolveItem = originals.resolveItem; BN.snapshot = originals.snapshot;
+    BN.coordinateImages = originals.coordinateImages; BN.coordinateCitationKey = originals.coordinateCitationKey;
+    BN.register = originals.register; BN.exportNote = originals.exportNote;
+    BN.rewriteImageLinks = originals.rewriteImageLinks; BN.activeNoteIDs = originals.activeNoteIDs;
+    globalThis.IOUtils = originals.IOUtils; globalThis.Zotero = originals.Zotero;
+  }
+}
 {
   const events = [];
   let markdownMode = true;

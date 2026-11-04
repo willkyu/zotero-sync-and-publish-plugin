@@ -2,12 +2,12 @@
 
 ## 兼容性与安装
 
-本扩展名为 **Sync & Publish 1.4.0**，沿用上游插件 ID，因此安装后会直接升级原版 Zotero GitHub Sync 并保留已有设置，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
+本扩展名为 **Sync & Publish 1.5.0**，沿用上游插件 ID，因此安装后会直接升级原版 Zotero GitHub Sync 并保留已有设置，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
 
 - 插件只保留统一 Workspace 功能；远端传输可选择 System Git 或 GitHub API，两者同步相同的管理路径。
 - Workspace + Better Notes：按 Better Notes 3.3.3 的实际 API 开发；该版本要求 Zotero 8.0-beta.21–10.99.99。
 - 首版运行边界：Windows、macOS 桌面版；只有 Zotero 正在运行时才监听和自动同步。
-- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `sync-and-publish-1.4.0.xpi`。
+- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `sync-and-publish-1.5.0.xpi`。
 
 ## 新电脑一键配置（推荐）
 
@@ -87,6 +87,8 @@
 - 手动打开和后台协调都会先保存当前 Zotero 编辑内容；编辑器仅仅可见不会阻止 Obsidian 修改导入。
 
 新阅读笔记文件名使用 `父文献标题-noteKey.md`；Windows 不允许的路径字符替换为空格并合并连续空白，note key 用于避免同名冲突。绑定建立后不会因父文献改名而反复重命名。旧版本产生的 `-NOTEKEY.md` 或 `NOTEKEY.md` 占位文件会在下次手动打开时改成可读名称；若目标名称已经存在则停止并提示，不覆盖文件。
+
+可以在 Obsidian 或文件管理器中把已绑定阅读笔记移动、重命名到 `content/papers` 下的任意多层子目录。插件会在旧路径消失后递归扫描 `papers`，根据 Frontmatter 中作为笔记稳定身份的 `$itemKey` 找到唯一新路径，更新共享绑定，并按新目录重写图片相对链接；移动同时编辑正文也会继续作为 Markdown 单边修改导入 Zotero。必须保留 `$itemKey`，且不能移动到配置的 `papers` 目录之外。若多个文件声明同一 `$itemKey`，或候选路径已属于其他绑定，插件会显示 `markdown-move-conflict` 并保留 Zotero 笔记和全部文件，不执行自动删除；消除重复文件后会在下一轮自动恢复。
 
 ### 阅读笔记模板与创建入口
 

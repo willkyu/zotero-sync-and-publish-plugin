@@ -35,6 +35,7 @@ Zotero's live SQLite database remains in the Zotero profile and is never placed 
 - GitHub API updates the branch ref without force and stops if another computer moved the branch.
 - Remote deletion removes a local workspace file only when the local hash still equals the last shared base.
 - Managed paths are explicit; API transport does not touch repository files outside them.
+- Bound reading notes can be moved or renamed into arbitrary subfolders below `content/papers`; the stable `$itemKey` updates their binding automatically. Duplicate matches are held for review and never treated as deletion.
 - Deleting a bound Zotero child note or its Markdown deletes the other copy automatically. Deleting the parent paper removes its Zotero mirror but retains the research Markdown.
 
 ## Install
