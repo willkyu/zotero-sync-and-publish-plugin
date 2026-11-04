@@ -1,10 +1,10 @@
 {
 	"manifest_version": 2,
-	"name": "Zotero GitHub Sync",
-	"version": "0.3.3",
-	"description": "Back up your whole Zotero library -- metadata, notes, annotations and PDFs -- to a public or private GitHub repository, with Git LFS for large files.",
-	"homepage_url": "https://github.com/situkangsayur/zotero-github-plugin",
-	"author": "situkangsayur",
+	"name": "Zotero Quartz Workspace Sync",
+	"version": "1.0.0",
+	"description": "Coordinate Zotero, Better Notes, Obsidian and Quartz through a local Git workspace, while retaining the original GitHub API mode.",
+	"homepage_url": "https://github.com/willkyu/zotero-quartz-github-plugin",
+	"author": "situkangsayur, willkyu",
 	"icons": {
 		"48": "content/icons/github-48.svg",
 		"96": "content/icons/github-96.svg"
@@ -12,7 +12,7 @@
 	"applications": {
 		"zotero": {
 			"id": "zotero-github-sync@situkangsayur.github.io",
-			"update_url": "https://raw.githubusercontent.com/situkangsayur/zotero-github-plugin/main/update.json",
+			"update_url": "https://raw.githubusercontent.com/willkyu/zotero-quartz-github-plugin/main/update.json",
 			"strict_min_version": "6.999",
 			"strict_max_version": "10.*"
 		}

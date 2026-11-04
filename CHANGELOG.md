@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] — 2026-11-04
+
+### Added
+
+- A mutually exclusive Local Workspace mode for Zotero JSON, Better Notes,
+  Obsidian/Quartz content and system Git.
+- Stable cross-computer note bindings, verified two-way note coordination and
+  independent note-image repair.
+- Safe scoped Git automation, content polling, Obsidian open/create entry
+  points, Chinese documentation and multi-workspace tests.
+
+### Changed
+
+- The upstream GitHub API mode remains available; updates now use this fork's
+  release channel so an upstream release cannot replace the customized build.
+
 ## [0.3.3] — 2026-09-25
 
 ### Fixed

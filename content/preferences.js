@@ -28,12 +28,98 @@ window.ZoteroGitHubSyncPrefs = {
 				this.saveToken();
 			}
 		});
+		document.getElementById('zgs-sync-mode').addEventListener('change', event => {
+			this.plugin.Prefs.set('syncMode', event.target.value);
+			setTimeout(() => this.refreshMode(), 0);
+		});
 
 		await this.refreshTokenStatus();
+		this.refreshMode();
 		this.refreshStatus();
 		// The status block shows the result of syncs started from anywhere, so
 		// keep it current while the pane is open
 		this._statusTimer = setInterval(() => this.refreshStatus(), 1000);
+	},
+
+
+	refreshMode() {
+		let config = this.plugin.Prefs.getConfig();
+		let local = config.syncMode === 'local-workspace';
+		document.getElementById('zgs-sync-mode').value = config.syncMode;
+		document.getElementById('zgs-local-settings').hidden = !local;
+		document.getElementById('zgs-github-account').hidden = local;
+		document.getElementById('zgs-github-repository').hidden = local;
+		let pause = document.getElementById('zgs-pause');
+		pause.label = config.automationPaused ? 'Resume automation' : 'Pause automation';
+	},
+
+
+	async chooseFolder(pref, inputID) {
+		try {
+			let { FilePicker } = ChromeUtils.importESModule('chrome://zotero/content/modules/filePicker.mjs');
+			let picker = new FilePicker();
+			picker.init(window, 'Choose folder', picker.modeGetFolder);
+			let result = await picker.show();
+			if (result !== picker.returnOK && result !== picker.returnReplace) return;
+			let path = typeof picker.file === 'string' ? picker.file : picker.file?.path;
+			if (!path) return;
+			this.plugin.Prefs.set(pref, path);
+			document.getElementById(inputID).value = path;
+			this.refreshMode();
+		}
+		catch (e) { Zotero.logError(e); }
+	},
+
+
+	async chooseTemplate() {
+		try {
+			let { FilePicker } = ChromeUtils.importESModule('chrome://zotero/content/modules/filePicker.mjs');
+			let picker = new FilePicker();
+			picker.init(window, 'Choose Markdown template', picker.modeOpen);
+			picker.appendFilter('Markdown', '*.md');
+			let result = await picker.show();
+			if (result !== picker.returnOK) return;
+			let path = typeof picker.file === 'string' ? picker.file : picker.file?.path;
+			if (!path) return;
+			this.plugin.Prefs.set('noteTemplatePath', path);
+			document.getElementById('zgs-template-path').value = path;
+		}
+		catch (e) { Zotero.logError(e); }
+	},
+
+
+	async testWorkspace() {
+		let status = document.getElementById('zgs-local-test-status');
+		status.textContent = 'Checking…';
+		try {
+			let config = this.plugin.Prefs.getConfig();
+			await new this.plugin.LocalGit(config).validate();
+			let bn = this.plugin.BetterNotes.available()
+				? `Better Notes ${this.plugin.BetterNotes.version()} detected.`
+				: 'Better Notes public API is unavailable.';
+			status.textContent = `Git workspace and branch are valid. ${bn}`;
+			status.classList.toggle('zgs-error', !this.plugin.BetterNotes.available());
+		}
+		catch (e) {
+			status.textContent = e.message || String(e);
+			status.classList.add('zgs-error');
+		}
+	},
+
+
+	testObsidian() {
+		let config = this.plugin.Prefs.getConfig();
+		if (!config.obsidianVaultPath) return;
+		let name = config.obsidianVaultName || PathUtils.filename(config.obsidianVaultPath);
+		Zotero.launchURL(`obsidian://open?vault=${encodeURIComponent(name)}`);
+	},
+
+
+	togglePause() {
+		let paused = !this.plugin.Prefs.get('automationPaused');
+		this.plugin.Prefs.set('automationPaused', paused);
+		this.plugin.Sync.updateSchedule();
+		this.refreshMode();
 	},
 
 
@@ -166,6 +252,11 @@ window.ZoteroGitHubSyncPrefs = {
 
 
 	openRepo() {
+		let config = this.plugin.Prefs.getConfig();
+		if (config.syncMode === 'local-workspace') {
+			Zotero.File.reveal(config.workspacePath);
+			return;
+		}
 		let url = this.plugin.Prefs.getRepoURL();
 		if (url) {
 			Zotero.launchURL(url);
@@ -181,6 +272,7 @@ window.ZoteroGitHubSyncPrefs = {
 		let lastCommit = prefs.get('lastCommit');
 		let lastError = prefs.get('lastError');
 		let lastWarnings = prefs.get('lastWarnings');
+		let localStatus = prefs.get('localStatus');
 
 		let lines = [];
 		let sync = this.plugin.Sync;
@@ -200,6 +292,13 @@ window.ZoteroGitHubSyncPrefs = {
 		}
 		if (lastWarnings) {
 			lines.push('Skipped or not restored:', ...lastWarnings.split('\n').map(line => `  ${line}`));
+		}
+		if (localStatus && prefs.getConfig().syncMode === 'local-workspace') {
+			try {
+				let value = JSON.parse(localStatus);
+				lines.push(`Workspace: ${value.status}; Git: ${value.git}; pending: ${value.pending}`);
+			}
+			catch (e) {}
 		}
 
 		this._status.textContent = lines.join('\n');

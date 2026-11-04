@@ -1,4 +1,8 @@
-# Zotero GitHub Sync
+# Zotero Quartz Workspace Sync
+
+This fork adds a mutually exclusive **Local Workspace** mode for coordinating Zotero JSON, Better Notes reading notes, Obsidian content/assets and system Git in one Quartz repository. The original GitHub API mode remains available.
+
+中文安装、迁移和日常使用说明见 [docs/LOCAL-WORKSPACE.zh-CN.md](docs/LOCAL-WORKSPACE.zh-CN.md)。设计与验证边界见 [docs/LOCAL-WORKSPACE-ARCHITECTURE.md](docs/LOCAL-WORKSPACE-ARCHITECTURE.md) 和 [docs/IMPLEMENTATION-STATUS.md](docs/IMPLEMENTATION-STATUS.md)。
 
 Back up your whole Zotero library — metadata, notes, annotations, and the PDFs, books and
 other files themselves — to a GitHub repository, public or private. Every item becomes a
@@ -9,7 +13,7 @@ ordinary Git commit you can browse, clone or roll back.
 
 Works with Zotero 7 through 10.
 
-**[Download the latest release](https://github.com/situkangsayur/zotero-github-plugin/releases/latest)** ·
+**[Download the latest release](https://github.com/willkyu/zotero-quartz-github-plugin/releases/latest)** ·
 **[Step-by-step tutorial](docs/TUTORIAL.md)** ·
 **[Tutorial (Bahasa Indonesia)](docs/TUTORIAL.id.md)**
 

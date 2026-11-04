@@ -367,7 +367,7 @@ ZoteroGitHubSync.Exporter = {
 			if (!attachment || attachment.deleted) {
 				continue;
 			}
-			let entry = await this._buildAttachment({ attachment, ctx, children, isTopLevel: attachment === item });
+			let entry = await this._buildAttachment({ attachment, ctx, children, isTopLevel: attachment === item, isNoteImage: false });
 			attachments.push(entry);
 		}
 
@@ -393,7 +393,7 @@ ZoteroGitHubSync.Exporter = {
 				if (!image || image.deleted) {
 					continue;
 				}
-				let entry = await this._buildAttachment({ attachment: image, ctx, children, isTopLevel: false });
+				let entry = await this._buildAttachment({ attachment: image, ctx, children, isTopLevel: false, isNoteImage: true });
 				if (entry.files.length) {
 					imageLinks.set(image.key, entry.files[0].path);
 				}
@@ -453,7 +453,7 @@ ZoteroGitHubSync.Exporter = {
 	 *
 	 * @return {Promise<Object>} Summary for `meta.attachments`
 	 */
-	async _buildAttachment({ attachment, ctx, children, isTopLevel }) {
+	async _buildAttachment({ attachment, ctx, children, isTopLevel, isNoteImage = false }) {
 		let { config, dir, out } = ctx;
 		if (!isTopLevel) {
 			children.push(this._itemJSON(attachment));
@@ -496,7 +496,10 @@ ZoteroGitHubSync.Exporter = {
 			);
 		};
 
-		if (!config.includeAttachments) {
+		let excludedInWorkspace = config.syncMode === 'local-workspace'
+			&& ((isNoteImage && !config.includeNoteImagesLocal)
+				|| (!isNoteImage && !config.includePDFsLocal));
+		if (!config.includeAttachments || excludedInWorkspace) {
 			entry.status = 'not-synced';
 			keepExisting();
 			return entry;

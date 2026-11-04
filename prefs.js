@@ -11,6 +11,26 @@ pref("extensions.zotero-github-sync.owner", "");
 pref("extensions.zotero-github-sync.repo", "");
 pref("extensions.zotero-github-sync.branch", "main");
 pref("extensions.zotero-github-sync.basePath", "zotero");
+// github-api keeps the upstream REST implementation. local-workspace uses a
+// checked-out Git repository and the user's existing Git credentials.
+pref("extensions.zotero-github-sync.syncMode", "github-api");
+pref("extensions.zotero-github-sync.workspacePath", "");
+pref("extensions.zotero-github-sync.gitExecutable", "git");
+pref("extensions.zotero-github-sync.gitRemote", "origin");
+pref("extensions.zotero-github-sync.gitBranch", "main");
+pref("extensions.zotero-github-sync.managedPaths", "content,zotero");
+pref("extensions.zotero-github-sync.papersPath", "content/papers");
+pref("extensions.zotero-github-sync.assetsPath", "content/assets");
+pref("extensions.zotero-github-sync.obsidianVaultPath", "");
+pref("extensions.zotero-github-sync.obsidianVaultName", "");
+pref("extensions.zotero-github-sync.noteTemplatePath", "");
+pref("extensions.zotero-github-sync.includePDFsLocal", false);
+pref("extensions.zotero-github-sync.includeNoteImagesLocal", true);
+pref("extensions.zotero-github-sync.autoCommit", true);
+pref("extensions.zotero-github-sync.autoPush", true);
+pref("extensions.zotero-github-sync.automationPaused", false);
+pref("extensions.zotero-github-sync.openNoteWithPDF", false);
+pref("extensions.zotero-github-sync.openBoundNoteOnDoubleClick", false);
 pref("extensions.zotero-github-sync.autoCreateRepo", true);
 pref("extensions.zotero-github-sync.repoPrivate", true);
 
@@ -36,13 +56,13 @@ pref("extensions.zotero-github-sync.prune", true);
 
 // -- Triggers --------------------------------------------------------------
 // Periodic sync
-pref("extensions.zotero-github-sync.intervalEnabled", false);
+pref("extensions.zotero-github-sync.intervalEnabled", true);
 pref("extensions.zotero-github-sync.intervalMinutes", 60);
 // Sync a while after the library changes
-pref("extensions.zotero-github-sync.syncOnChange", false);
-pref("extensions.zotero-github-sync.changeDelayMinutes", 5);
+pref("extensions.zotero-github-sync.syncOnChange", true);
+pref("extensions.zotero-github-sync.changeDelayMinutes", 2);
 // Sync once, shortly after Zotero starts
-pref("extensions.zotero-github-sync.syncOnStartup", false);
+pref("extensions.zotero-github-sync.syncOnStartup", true);
 // Sync to GitHub whenever Zotero's own sync (the toolbar sync button) finishes
 pref("extensions.zotero-github-sync.syncAfterZoteroSync", false);
 
@@ -57,3 +77,4 @@ pref("extensions.zotero-github-sync.lastCommit", "");
 pref("extensions.zotero-github-sync.lastError", "");
 pref("extensions.zotero-github-sync.lastWarnings", "");
 pref("extensions.zotero-github-sync.pendingReview", 0);
+pref("extensions.zotero-github-sync.localStatus", "");

@@ -70,7 +70,39 @@ ZoteroGitHubSync.Prefs = {
 	 * @return {Object} Everything the sync engine needs, already normalized
 	 */
 	getConfig() {
+		let relative = (value, fallback) => {
+			try {
+				let raw = String(value || fallback || '').replace(/\\/g, '/');
+				let segments = raw.split('/');
+				if (/^[A-Za-z]:/.test(raw) || raw.startsWith('/')
+					|| segments.some(s => s === '.' || s === '..')) throw new Error('not relative');
+				return segments.map(s => s.trim()).filter(Boolean).join('/');
+			}
+			catch (e) {
+				return fallback;
+			}
+		};
+		let managedPaths = String(this.get('managedPaths') || 'content,zotero')
+			.split(',').map(p => relative(p.trim(), '')).filter(Boolean);
 		return {
+			syncMode: this.get('syncMode') === 'local-workspace' ? 'local-workspace' : 'github-api',
+			workspacePath: String(this.get('workspacePath') || '').trim(),
+			gitExecutable: String(this.get('gitExecutable') || 'git').trim() || 'git',
+			gitRemote: String(this.get('gitRemote') || 'origin').trim() || 'origin',
+			gitBranch: String(this.get('gitBranch') || this.get('branch') || 'main').trim() || 'main',
+			managedPaths: [...new Set(managedPaths)],
+			papersPath: relative(this.get('papersPath'), 'content/papers'),
+			assetsPath: relative(this.get('assetsPath'), 'content/assets'),
+			obsidianVaultPath: String(this.get('obsidianVaultPath') || '').trim(),
+			obsidianVaultName: String(this.get('obsidianVaultName') || '').trim(),
+			noteTemplatePath: String(this.get('noteTemplatePath') || '').trim(),
+			includePDFsLocal: !!this.get('includePDFsLocal'),
+			includeNoteImagesLocal: this.get('includeNoteImagesLocal') !== false,
+			autoCommit: this.get('autoCommit') !== false,
+			autoPush: this.get('autoPush') !== false,
+			automationPaused: !!this.get('automationPaused'),
+			openNoteWithPDF: !!this.get('openNoteWithPDF'),
+			openBoundNoteOnDoubleClick: !!this.get('openBoundNoteOnDoubleClick'),
 			apiURL: (this.get('apiURL') || 'https://api.github.com').replace(/\/+$/, ''),
 			owner: (this.get('owner') || '').trim(),
 			repo: (this.get('repo') || '').trim(),
@@ -117,6 +149,9 @@ ZoteroGitHubSync.Prefs = {
 	 */
 	hasRepoConfig() {
 		let config = this.getConfig();
+		if (config.syncMode === 'local-workspace') {
+			return !!config.workspacePath;
+		}
 		return !!(config.owner && config.repo && config.branch);
 	},
 
@@ -125,7 +160,9 @@ ZoteroGitHubSync.Prefs = {
 	 * @return {Promise<Boolean>}
 	 */
 	async isConfigured() {
-		return this.hasRepoConfig() && !!(await this.getToken());
+		let config = this.getConfig();
+		return this.hasRepoConfig()
+			&& (config.syncMode === 'local-workspace' || !!(await this.getToken()));
 	},
 
 

@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { createHash, randomBytes } from 'node:crypto';
 import assert from 'node:assert/strict';
-const SRC = new URL('../src', import.meta.url).pathname;
+import { fileURLToPath } from 'node:url';
+const SRC = fileURLToPath(new URL('../src', import.meta.url));
 globalThis.ZoteroGitHubSync = { log(){}, warn(){}, logError: console.error, version: '0.2.0', getString: k => k };
-for (const f of ['utils.js', 'exporter.js', 'importer.js', 'planner.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
+for (const f of ['utils.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
 const U = ZoteroGitHubSync.Utils, E = ZoteroGitHubSync.Exporter, I = ZoteroGitHubSync.Importer;
+const G = ZoteroGitHubSync.LocalGit, BN = ZoteroGitHubSync.BetterNotes, W = ZoteroGitHubSync.Workspace;
 
 // base64 across block boundaries
 for (const n of [0, 1, 2, 3, 3*1024*1024 - 1, 3*1024*1024, 3*1024*1024 + 1, 7*1024*1024 + 2]) {
@@ -218,6 +220,34 @@ assert.deepEqual(I.safeSegments('paper.pdf'), ['paper.pdf']);
 assert.deepEqual(I.safeSegments('snapshot/index.html'), ['snapshot', 'index.html']);
 for (const bad of ['../evil.txt', 'a/../../evil.txt', './x', 'a//b', '', 'a/', 'a\\..\\b']) {
   assert.equal(I.safeSegments(bad), null, `escapes: ${bad}`);
+}
+
+// -- Local Workspace safety and compatibility rules ------------------------
+assert.deepEqual(G.parsePorcelainZ(' M content/a.md\0R  zotero/old.json\0zotero/new.json\0'), [
+  { status: ' M', path: 'content/a.md', original: null },
+  { status: 'R ', path: 'zotero/old.json', original: 'zotero/new.json' },
+]);
+assert.deepEqual(BN.unsafeMarkdown('# Fine\n\n- [ ] lossy\n\n![[embed.png]]\n'), ['task lists', 'Obsidian embeds']);
+assert.deepEqual(BN.unsafeMarkdown('```md\n- [ ] code\n![[x]]\n```\n> [!note]\n[[Page]]'), []);
+assert.equal(BN.relativePosix('content/papers', 'content/assets/图 1.png'), '../assets/图 1.png');
+const bindings = W.validateBindings({ bindings: [
+  { library: { type: 'user' }, parentKey: 'PARENT01', noteKey: 'NOTE0001', path: 'content/papers/a.md' },
+  { library: { type: 'user' }, parentKey: 'PARENT02', noteKey: 'NOTE0001', path: 'content/papers/duplicate.md' },
+  { library: { type: 'user' }, parentKey: 'PARENT03', noteKey: 'NOTE0003', path: '../outside.md' },
+] });
+assert.equal(bindings.length, 1, 'duplicate note identities and escaping paths are rejected');
+assert.equal(W.isMirrorPath('my-library/items/AB/ABCD1234.json'), true);
+assert.equal(W.isMirrorPath('my-library/notes/A/user.md'), false, 'generated Markdown is not a local mirror input');
+assert.equal(W.isMirrorPath('my-library/attachments/AB/ABCDEFGH/image.png'), true);
+{
+  const local = new Map([['my-library/items/AB/ABCD1234.json', 'item']]);
+  const remote = new Map([
+    ['my-library/items/AB/ABCD1234.json', 'item'],
+    ['my-library/attachments/PD/PDF00001/paper.pdf', 'pdf'],
+  ]);
+  const kept = W.applyKeepPrefixes(local, remote, ['my-library/attachments/PD/PDF00001/']);
+  assert.deepEqual(kept, ['my-library/attachments/PD/PDF00001/paper.pdf']);
+  assert.equal(local.get(kept[0]), 'pdf', 'disabled/missing attachments retain their repository baseline');
 }
 
 console.log('all pure-logic tests passed');

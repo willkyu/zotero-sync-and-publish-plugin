@@ -1,17 +1,17 @@
 {
 	"name": "zotero-github-sync",
-	"version": "0.3.3",
+	"version": "1.0.0",
 	"private": true,
 	"description": "Zotero plugin that syncs a library to a GitHub repository",
 	"type": "module",
 	"scripts": {
 		"build": "node scripts/build.mjs",
 		"lint": "eslint .",
-		"test": "node test/pure.test.mjs"
+		"test": "node test/pure.test.mjs && node test/git-integration.test.mjs"
 	},
 	"repository": {
 		"type": "git",
-		"url": "git@github.com:situkangsayur/zotero-github-plugin.git"
+		"url": "git@github.com:willkyu/zotero-quartz-github-plugin.git"
 	},
 	"license": "MIT"
 }

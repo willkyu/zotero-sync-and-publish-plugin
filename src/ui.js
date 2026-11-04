@@ -46,6 +46,7 @@ ZoteroGitHubSync.UI = {
 			'_addToolsMenu',
 			'_addItemContextMenu',
 			'_addCollectionContextMenu',
+			'_addReadingNoteShortcut',
 		]) {
 			try {
 				this[add](win, elements);
@@ -233,6 +234,11 @@ ZoteroGitHubSync.UI = {
 		menuitem.id = 'zotero-github-sync-item-menuitem';
 		menuitem.setAttribute('label', ZoteroGitHubSync.getString('menu.syncSelected'));
 		menuitem.addEventListener('command', () => this._syncSelectedItems(win));
+		let openNote = doc.createXULElement('menuitem');
+		openNote.id = 'zotero-quartz-open-reading-note';
+		openNote.setAttribute('label', 'Open Reading Note in Obsidian');
+		openNote.setAttribute('key', 'zotero-quartz-open-reading-note-key');
+		openNote.addEventListener('command', () => this._openReadingNote(win));
 
 		// ZoteroPane rebuilds this menu by index, so appended items survive, but
 		// their visibility is ours to manage
@@ -241,6 +247,7 @@ ZoteroGitHubSync.UI = {
 			let visible = ZoteroGitHubSync.Prefs.hasRepoConfig() && selected.length > 0;
 			separator.hidden = !visible;
 			menuitem.hidden = !visible;
+			openNote.hidden = !(visible && ZoteroGitHubSync.Prefs.getConfig().syncMode === 'local-workspace');
 		};
 		itemMenu.addEventListener('popupshowing', onPopupShowing);
 		elements.push({
@@ -248,10 +255,25 @@ ZoteroGitHubSync.UI = {
 				itemMenu.removeEventListener('popupshowing', onPopupShowing);
 				separator.remove();
 				menuitem.remove();
+				openNote.remove();
 			},
 		});
 
-		itemMenu.append(separator, menuitem);
+		itemMenu.append(separator, openNote, menuitem);
+	},
+
+
+	_addReadingNoteShortcut(win, elements) {
+		let doc = win.document;
+		let keyset = doc.getElementById('mainKeyset') || doc.querySelector('keyset');
+		if (!keyset) return;
+		let key = doc.createXULElement('key');
+		key.id = 'zotero-quartz-open-reading-note-key';
+		key.setAttribute('key', 'O');
+		key.setAttribute('modifiers', 'accel,alt');
+		key.addEventListener('command', () => this._openReadingNote(win));
+		keyset.append(key);
+		elements.push(key);
 	},
 
 
@@ -287,7 +309,7 @@ ZoteroGitHubSync.UI = {
 	 * The entries shared by the Tools menu and the toolbar dropdown.
 	 */
 	_menuEntries(win) {
-		return [
+		let entries = [
 			{
 				id: 'sync-now',
 				label: ZoteroGitHubSync.getString('menu.syncNow'),
@@ -328,6 +350,14 @@ ZoteroGitHubSync.UI = {
 				command: () => this._openPreferences(),
 			},
 		];
+		if (ZoteroGitHubSync.Prefs.getConfig().syncMode === 'local-workspace') {
+			entries.splice(3, 0, {
+				id: 'open-reading-note',
+				label: 'Open Reading Note in Obsidian',
+				command: () => this._openReadingNote(win),
+			});
+		}
+		return entries;
 	},
 
 
@@ -364,6 +394,22 @@ ZoteroGitHubSync.UI = {
 		let items = this._getSelectedItems(win);
 		ZoteroGitHubSync.Sync.syncNow({ trigger: 'selection', items })
 			.catch(e => ZoteroGitHubSync.logError(e));
+	},
+
+
+	async _openReadingNote(win) {
+		try {
+			let item = win.ZoteroPane?.getSelectedItems?.()?.[0];
+			if (!item) {
+				ZoteroGitHubSync.Sync._notify('Select a paper, attachment, or note first.', { error: true });
+				return;
+			}
+			await ZoteroGitHubSync.Workspace.openReadingNote(item);
+		}
+		catch (e) {
+			ZoteroGitHubSync.logError(e);
+			ZoteroGitHubSync.Sync._notify(e.message || String(e), { error: true });
+		}
 	},
 
 

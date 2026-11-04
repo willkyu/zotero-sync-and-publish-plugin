@@ -2,8 +2,61 @@
 		onload="ZoteroGitHubSyncPrefs.init()"
 		onunload="ZoteroGitHubSyncPrefs.uninit()">
 	<vbox class="main-section">
-
 		<groupbox>
+			<label><html:h2>Sync mode</html:h2></label>
+			<hbox align="center">
+				<label control="zgs-sync-mode" value="Mode"/>
+				<html:select id="zgs-sync-mode" preference="extensions.zotero-github-sync.syncMode">
+					<html:option value="github-api">GitHub API (upstream mode)</html:option>
+					<html:option value="local-workspace">Local Workspace (Zotero + Better Notes + Obsidian + Git)</html:option>
+				</html:select>
+			</hbox>
+			<html:div class="zgs-hint">Only one mode runs at a time. Local Workspace never calls the GitHub Contents API.</html:div>
+		</groupbox>
+
+		<groupbox id="zgs-local-settings">
+			<label><html:h2>Local Workspace</html:h2></label>
+			<hbox align="center">
+				<label control="zgs-workspace-path" value="Research repository root"/>
+				<html:input id="zgs-workspace-path" type="text" flex="1" preference="extensions.zotero-github-sync.workspacePath"/>
+				<button label="Choose…" oncommand="ZoteroGitHubSyncPrefs.chooseFolder('workspacePath', 'zgs-workspace-path')"/>
+			</hbox>
+			<hbox align="center">
+				<label value="Git executable"/><html:input type="text" size="18" preference="extensions.zotero-github-sync.gitExecutable"/>
+				<label value="Remote"/><html:input type="text" size="12" preference="extensions.zotero-github-sync.gitRemote"/>
+				<label value="Branch"/><html:input type="text" size="12" preference="extensions.zotero-github-sync.gitBranch"/>
+			</hbox>
+			<hbox align="center">
+				<label value="Managed commit paths"/><html:input type="text" flex="1" preference="extensions.zotero-github-sync.managedPaths" placeholder="content,zotero"/>
+			</hbox>
+			<hbox align="center">
+				<label value="Reading notes"/><html:input type="text" flex="1" preference="extensions.zotero-github-sync.papersPath"/>
+				<label value="Note images"/><html:input type="text" flex="1" preference="extensions.zotero-github-sync.assetsPath"/>
+			</hbox>
+			<checkbox label="Sync note images (independent of PDFs)" preference="extensions.zotero-github-sync.includeNoteImagesLocal"/>
+			<checkbox label="Sync original PDFs and other literature attachments" preference="extensions.zotero-github-sync.includePDFsLocal"/>
+			<checkbox label="Automatically commit managed paths" preference="extensions.zotero-github-sync.autoCommit"/>
+			<checkbox label="Automatically push after a successful commit" preference="extensions.zotero-github-sync.autoPush"/>
+			<hbox align="center">
+				<label value="Obsidian Vault path"/><html:input id="zgs-vault-path" type="text" flex="1" preference="extensions.zotero-github-sync.obsidianVaultPath"/>
+				<button label="Choose…" oncommand="ZoteroGitHubSyncPrefs.chooseFolder('obsidianVaultPath', 'zgs-vault-path')"/>
+			</hbox>
+			<hbox align="center">
+				<label value="Vault name (optional)"/><html:input type="text" flex="1" preference="extensions.zotero-github-sync.obsidianVaultName"/>
+				<button label="Test open" oncommand="ZoteroGitHubSyncPrefs.testObsidian()"/>
+			</hbox>
+			<hbox align="center">
+				<label value="Default reading-note template"/><html:input id="zgs-template-path" type="text" flex="1" preference="extensions.zotero-github-sync.noteTemplatePath"/>
+				<button label="Choose Markdown…" oncommand="ZoteroGitHubSyncPrefs.chooseTemplate()"/>
+			</hbox>
+			<hbox>
+				<button label="Validate workspace" oncommand="ZoteroGitHubSyncPrefs.testWorkspace()"/>
+				<button id="zgs-pause" label="Pause automation" oncommand="ZoteroGitHubSyncPrefs.togglePause()"/>
+			</hbox>
+			<html:div id="zgs-local-test-status" class="zgs-status"/>
+		</groupbox>
+
+		<groupbox id="zgs-github-account">
 			<label><html:h2>GitHub account</html:h2></label>
 
 			<html:div class="zgs-hint">
@@ -32,7 +85,7 @@
 			<html:div id="zgs-token-status" class="zgs-status"/>
 		</groupbox>
 
-		<groupbox>
+		<groupbox id="zgs-github-repository">
 			<label><html:h2>Repository</html:h2></label>
 
 			<hbox align="center">

@@ -63,8 +63,8 @@ var ZoteroGitHubSync = {
 				scripts: [this.rootURI + 'content/preferences.js'],
 				stylesheets: [this.rootURI + 'content/preferences.css'],
 				image: this.rootURI + 'content/icons/github-48.svg',
-				label: 'GitHub Sync',
-				helpURL: 'https://github.com/situkangsayur/zotero-github-plugin#readme',
+				label: 'Quartz Workspace Sync',
+				helpURL: 'https://github.com/willkyu/zotero-quartz-github-plugin#readme',
 			});
 		}
 		catch (e) {
