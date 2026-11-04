@@ -264,7 +264,7 @@ ZoteroGitHubSync.GitHub = class GitHubClient {
 			body: {
 				name: this.repo,
 				private: !!isPrivate,
-				description: description || 'Zotero library synced by Zotero GitHub Sync',
+				description: description || 'Research workspace synchronized by Sync & Publish',
 				auto_init: true,
 			},
 		});

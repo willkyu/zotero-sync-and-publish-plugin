@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] — 2026-11-04
+
+### Added
+
+- Simplified Chinese localization for the settings pane, menus, toolbar, progress messages and change-review dialog.
+
+### Changed
+
+- Renamed the extension to **Sync & Publish** while retaining its extension ID and preferences for seamless upgrades.
+- Renamed the repository to `zotero-sync-and-publish-plugin` and the release package to `sync-and-publish-<version>.xpi`.
+
 ## [1.3.0] — 2026-11-04
 
 ### Added
@@ -128,7 +139,7 @@ Found by running the 0.3.2 fixes in a real Zotero. The sync code is shared with 
 - **Review panel**, drawn inside Zotero's main window (not a separate or modal window):
   import changes from GitHub, choose Zotero's or GitHub's version when both changed — or keep
   both, for files — upload items deleted on GitHub again, and exclude any file the sync would
-  replace or delete. **Tools → GitHub Sync → Review Changes and Sync…** opens it on demand.
+  replace or delete. **Tools → Sync & Publish → Review Changes and Sync…** opens it on demand.
 - **Background syncs never decide for you.** They upload what is safe, leave everything that
   needs a decision untouched, and mark the toolbar button with an orange dot and a count.
 - A computer syncing a repository for the first time compares modification dates to tell

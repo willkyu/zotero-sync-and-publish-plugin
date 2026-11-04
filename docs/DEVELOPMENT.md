@@ -11,7 +11,7 @@ has no dependencies and there is nothing to `npm install`.
 npm run build
 ```
 
-Writes `build/zotero-github-sync-<version>.xpi` and prints its size and SHA-256. An XPI is
+Writes `build/sync-and-publish-<version>.xpi` and prints its size and SHA-256. An XPI is
 just a ZIP with `manifest.json` at the root; `scripts/build.mjs` writes one directly
 (stored, not deflated, which Zotero accepts) so that producing a release never depends on
 the npm registry.
@@ -185,7 +185,7 @@ command line or log:
 
 ```bash
 ssh host 'umask 077; mkdir -p ~/.config/zotero-github-sync; cat > ~/.config/zotero-github-sync/token' < token.txt
-scp build/zotero-github-sync-<version>.xpi host:zgs-import-test/zotero-github-sync.xpi
+scp build/sync-and-publish-<version>.xpi host:zgs-import-test/zotero-github-sync.xpi
 scp zgs-import-test.xpi host:zgs-import-test/zgs-import-test.xpi   # zip of scripts/import-test/addon
 (echo 'export ZGS_OWNER=me ZGS_REPO=my-library ZGS_BASE_PATH=zotero'; cat scripts/import-test/run-remote.sh) | ssh host 'bash -s'
 ```
@@ -207,7 +207,7 @@ panel is replaced by a scripted chooser. Each step writes `out/<step>.json` with
 result, what the review offered, and the library and repository afterwards.
 
 ```bash
-scp build/zotero-github-sync-<version>.xpi host:zgs-conflict/zotero-github-sync.xpi
+scp build/sync-and-publish-<version>.xpi host:zgs-conflict/zotero-github-sync.xpi
 scp zgs-conflict-test.xpi host:zgs-conflict/zgs-conflict-test.xpi   # zip of scripts/conflict-test/addon
 (echo 'export ZGS_OWNER=me ZGS_REPO=sync-test ZGS_BASE_PATH=run-1'; cat scripts/conflict-test/run-remote.sh) | ssh host 'bash -s'
 ```
@@ -224,7 +224,7 @@ It opens no ports.
 
 ```bash
 # build both XPIs, copy them to the Zotero machine, then:
-scp build/zotero-github-sync-<version>.xpi host:zgs-demo/zotero-github-sync.xpi
+scp build/sync-and-publish-<version>.xpi host:zgs-demo/zotero-github-sync.xpi
 scp zgs-screenshots.xpi host:zgs-demo/zgs-screenshots.xpi   # zip of scripts/screenshots/addon
 ssh host 'bash -s' < scripts/screenshots/run-remote.sh
 ```

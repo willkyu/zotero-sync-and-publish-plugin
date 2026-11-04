@@ -40,10 +40,10 @@ git clone https://github.com/situkangsayur/zotero-github-plugin.git
 cd zotero-github-plugin
 npm install          # only eslint; the plugin itself has no dependencies
 npm test              # pure logic, no Zotero and no network
-npm run build        # writes build/zotero-github-sync-<version>.xpi
+npm run build        # writes build/sync-and-publish-<version>.xpi
 ```
 
-Install `build/zotero-github-sync-<version>.xpi` in Zotero with Tools -> Add-ons -> the gear -> Install Add-on From File.
+Install `build/sync-and-publish-<version>.xpi` in Zotero with Tools -> Add-ons -> the gear -> Install Add-on From File.
 `docs/DEVELOPMENT.md` has the rest: running from source, the headless test harnesses, and how a
 release is made.
 

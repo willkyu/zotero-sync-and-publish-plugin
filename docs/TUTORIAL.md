@@ -1,6 +1,6 @@
 # Tutorial: back up your Zotero library to GitHub
 
-This walks through installing Zotero GitHub Sync, connecting it to a GitHub repository, and
+This walks through installing Sync & Publish, connecting it to a GitHub repository, and
 running your first sync. It takes about ten minutes, plus however long your PDFs take to
 upload.
 
@@ -37,7 +37,7 @@ Don't paste the token anywhere except Zotero.
 
 ## 3. Install the plugin
 
-1. Download the latest `zotero-github-sync-<version>.xpi` from the
+1. Download the latest `sync-and-publish-<version>.xpi` from the
    [Releases page](https://github.com/situkangsayur/zotero-github-plugin/releases/latest).
    In Firefox, right-click the link and choose *Save Link As…*, otherwise Firefox tries to
    install it as a browser extension.
@@ -54,7 +54,7 @@ sync button:
 
 ## 4. Connect it to GitHub
 
-Open **Edit → Settings → GitHub Sync** (on macOS, **Zotero → Settings**).
+Open **Edit → Settings → Sync & Publish** (on macOS, **Zotero → Settings**).
 
 ### GitHub account
 
@@ -188,14 +188,14 @@ it is; the button shows an orange dot:
 
 ![Toolbar button with changes waiting for review](images/toolbar-attention.png)
 
-Click it, or use **Tools → GitHub Sync → Review Changes and Sync…**, to review. That menu item
+Click it, or use **Tools → Sync & Publish → Review Changes and Sync…**, to review. That menu item
 also shows the review when nothing needs a decision, so you can see — and exclude — exactly
 which files a sync is about to replace or delete.
 
 ## 8. Restore on another computer
 
 1. Install Zotero and the plugin, and configure the same token, owner and repository.
-2. **Tools → GitHub Sync → Import from GitHub…**
+2. **Tools → Sync & Publish → Import from GitHub…**
 
 Import adds items you don't have (with the same keys, so annotations land on the right PDF),
 refreshes items whose repository copy is newer, recreates collections, saved searches and

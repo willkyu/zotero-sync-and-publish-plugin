@@ -1,6 +1,6 @@
 # Tutorial: mencadangkan pustaka Zotero ke GitHub
 
-Panduan ini menjelaskan cara memasang Zotero GitHub Sync, menghubungkannya ke repositori
+Panduan ini menjelaskan cara memasang Sync & Publish, menghubungkannya ke repositori
 GitHub, dan menjalankan sinkronisasi pertama. Kira-kira sepuluh menit, ditambah waktu
 unggah PDF Anda.
 
@@ -38,7 +38,7 @@ Jangan tempel token di mana pun selain di Zotero.
 
 ## 3. Pasang plugin
 
-1. Unduh `zotero-github-sync-<versi>.xpi` terbaru dari
+1. Unduh `sync-and-publish-<versi>.xpi` terbaru dari
    [halaman Releases](https://github.com/situkangsayur/zotero-github-plugin/releases/latest).
    Di Firefox, klik kanan tautannya lalu pilih *Save Link As…*, supaya Firefox tidak mencoba
    memasangnya sebagai ekstensi browser.
@@ -55,7 +55,7 @@ Zotero:
 
 ## 4. Hubungkan ke GitHub
 
-Buka **Edit → Settings → GitHub Sync** (di macOS: **Zotero → Settings**).
+Buka **Edit → Settings → Sync & Publish** (di macOS: **Zotero → Settings**).
 
 ### GitHub account
 
@@ -191,14 +191,14 @@ membiarkan sisanya; tombol menampilkan titik oranye:
 
 ![Tombol toolbar dengan perubahan yang menunggu ditinjau](images/toolbar-attention.png)
 
-Klik tombol itu, atau gunakan **Tools → GitHub Sync → Review Changes and Sync…**. Menu itu juga
+Klik tombol itu, atau gunakan **Tools → Sync & Publish → Review Changes and Sync…**. Menu itu juga
 menampilkan tinjauan ketika tidak ada yang perlu diputuskan, sehingga Anda bisa melihat — dan
 mengecualikan — berkas mana yang akan diganti atau dihapus di GitHub.
 
 ## 8. Memulihkan di komputer lain
 
 1. Pasang Zotero dan plugin, lalu isi token, owner dan repositori yang sama.
-2. **Tools → GitHub Sync → Import from GitHub…**
+2. **Tools → Sync & Publish → Import from GitHub…**
 
 Import menambahkan item yang belum ada (dengan key yang sama, sehingga anotasi kembali ke PDF
 yang benar), memperbarui item yang versi repositorinya lebih baru, membuat ulang koleksi,

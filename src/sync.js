@@ -369,14 +369,17 @@ ZoteroGitHubSync.Sync = {
 	async _runWorkspace({ trigger, silent, remote }) {
 		let config = ZoteroGitHubSync.Prefs.getConfig();
 		if (!config.workspacePath) {
-			if (!silent) this._notify('Configure the Local Workspace repository path first.', { error: true });
+			if (!silent) this._notify(ZoteroGitHubSync.getString('error.localWorkspaceNotConfigured'), { error: true });
 			return { status: 'not-configured' };
 		}
 		this._running = true;
 		this._cancel = new ZoteroGitHubSync.CancelToken();
 		this.progress = null;
 		this._setStatus('syncing');
-		this._updateProgress({ phase: 'collecting', message: remote ? 'Preparing GitHub sync…' : 'Coordinating local workspace…' });
+		this._updateProgress({
+			phase: 'collecting',
+			message: ZoteroGitHubSync.getString(remote ? 'progress.preparingCloud' : 'progress.coordinatingLocal'),
+		});
 		if (!silent) this._openProgressWindow();
 		try {
 			let result = await ZoteroGitHubSync.Workspace.syncNow({ trigger, silent, remote });
@@ -405,11 +408,11 @@ ZoteroGitHubSync.Sync = {
 			ZoteroGitHubSync.Prefs.set('pendingReview', this.pendingReview);
 			this.progress = null;
 			this._setStatus(this.pendingReview ? 'attention' : 'idle');
-			let layer = remote ? 'GitHub sync' : 'Local coordination';
+			let layer = ZoteroGitHubSync.getString(remote ? 'progress.layerCloud' : 'progress.layerLocal');
 			let summary = result.status === 'up-to-date'
-				? `${layer} is already up to date.`
-				: `${layer}: ${result.status}; ${result.added || 0} file(s) changed.`;
-			if (result.pending) summary += `\n${result.pending} change(s) need attention.`;
+				? ZoteroGitHubSync.getString('progress.layerUpToDate', layer)
+				: ZoteroGitHubSync.getString('progress.layerChanged', layer, result.status, result.added || 0);
+			if (result.pending) summary += `\n${ZoteroGitHubSync.getString('progress.needsAttention', result.pending)}`;
 			this._finishProgressWindow(summary);
 			return result;
 		}
@@ -417,7 +420,8 @@ ZoteroGitHubSync.Sync = {
 			this.progress = null;
 			if (e instanceof ZoteroGitHubSync.CancelledError) {
 				this._setStatus('idle');
-				this._finishProgressWindow(`${remote ? 'GitHub sync' : 'Local coordination'} cancelled. Saved files were kept.`);
+				let layer = ZoteroGitHubSync.getString(remote ? 'progress.layerCloud' : 'progress.layerLocal');
+				this._finishProgressWindow(ZoteroGitHubSync.getString('progress.layerCancelled', layer));
 				return { status: 'cancelled' };
 			}
 			ZoteroGitHubSync.logError(e);

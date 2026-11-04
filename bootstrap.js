@@ -11,6 +11,7 @@ var ZoteroGitHubSync;
 
 var SOURCE_FILES = [
 	'src/core.js',
+	'src/locale-zh-CN.js',
 	'src/utils.js',
 	'src/files.js',
 	'src/prefs.js',

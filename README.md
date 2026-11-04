@@ -1,4 +1,4 @@
-# Zotero Quartz Workspace Sync
+# Sync & Publish
 
 Coordinate Zotero, Better Notes, Obsidian and Quartz in one local workspace. Local coordination is always active while Zotero is running; GitHub synchronization is a separate, configurable layer. Choose how the workspace reaches GitHub:
 
@@ -6,6 +6,8 @@ Coordinate Zotero, Better Notes, Obsidian and Quartz in one local workspace. Loc
 - **GitHub API** — synchronizes the complete configured workspace paths through GitHub's Git Database API; no `git.exe` or `.git` directory is required.
 
 中文安装、配置、迁移和冲突说明见 [Local Workspace 中文使用手册](docs/LOCAL-WORKSPACE.zh-CN.md)。Implementation details are in [Local Workspace architecture](docs/LOCAL-WORKSPACE-ARCHITECTURE.md).
+
+The interface follows Zotero's language. Simplified Chinese localizes the settings pane, menus, toolbar, progress feedback and change review; unsupported locales fall back to English.
 
 ## Workspace model
 
@@ -37,7 +39,7 @@ Zotero's live SQLite database remains in the Zotero profile and is never placed 
 
 ## Install
 
-1. Download `zotero-github-sync-<version>.xpi` from this fork's [Releases](https://github.com/willkyu/zotero-quartz-github-plugin/releases/latest), or build it locally.
+1. Download `sync-and-publish-<version>.xpi` from this fork's [Releases](https://github.com/willkyu/zotero-sync-and-publish-plugin/releases/latest), or build it locally.
 2. In Zotero, open **Tools → Plugins → gear icon → Install Plugin From File…**.
 3. Select the XPI and restart Zotero.
 
@@ -45,7 +47,7 @@ The fork retains the upstream extension ID, so installing it replaces the upstre
 
 ## Configure
 
-Open **Zotero Settings → GitHub Sync** and choose a workspace directory, managed paths, Zotero mirror folder, reading-note folder, asset folder and Obsidian Vault.
+Open **Zotero Settings → Sync & Publish** and choose a workspace directory, managed paths, Zotero mirror folder, reading-note folder, asset folder and Obsidian Vault.
 
 ### New-computer quick setup
 
@@ -97,7 +99,7 @@ npm run build
 
 The test suite includes pure three-way planning tests, a real temporary bare Git remote with three independent worktrees, and an in-memory GitHub remote that exercises initial two-way transfer, independent edits and same-file conflict preservation.
 
-The XPI is written to `build/zotero-github-sync-<version>.xpi`.
+The XPI is written to `build/sync-and-publish-<version>.xpi`.
 
 ## License
 

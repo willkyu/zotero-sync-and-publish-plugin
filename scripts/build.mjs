@@ -160,7 +160,7 @@ async function main() {
 	let updates = JSON.parse(await readFile(join(ROOT, 'update.json'), 'utf8'));
 	let update = updates.addons?.[manifest.applications.zotero.id]?.updates?.[0];
 	if (pkg.version !== version || update?.version !== version
-		|| !String(update?.update_link || '').includes(`/v${version}/zotero-github-sync-${version}.xpi`)) {
+		|| !String(update?.update_link || '').includes(`/v${version}/sync-and-publish-${version}.xpi`)) {
 		throw new Error('manifest.json, package.json and update.json release versions/URL must match');
 	}
 
@@ -181,7 +181,7 @@ async function main() {
 
 	let zip = buildZip(entries);
 	await mkdir(BUILD_DIR, { recursive: true });
-	let outPath = join(BUILD_DIR, `zotero-github-sync-${version}.xpi`);
+	let outPath = join(BUILD_DIR, `sync-and-publish-${version}.xpi`);
 	await writeFile(outPath, zip);
 
 	let sha = createHash('sha256').update(zip).digest('hex');

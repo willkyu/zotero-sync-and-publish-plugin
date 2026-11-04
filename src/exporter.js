@@ -51,7 +51,7 @@ ZoteroGitHubSync.Exporter = {
 		let stats = [];
 
 		for (let library of libraries) {
-			onProgress(`Reading ${library.name}…`);
+			onProgress(ZoteroGitHubSync.getString('progress.readingLibrary', library.name));
 			let stat = await this._buildLibrary({ library, config, items, out, onProgress });
 			stats.push(stat);
 		}
@@ -141,7 +141,9 @@ ZoteroGitHubSync.Exporter = {
 				out.files.set(`${dir}/${record.markdownPath}`, this._textFile(record.markdown));
 			}
 			if (exported.length % 100 === 0) {
-				onProgress(`Read ${exported.length}/${topLevelItems.length} items in ${library.name}…`);
+				onProgress(ZoteroGitHubSync.getString(
+					'progress.readLibraryItems', exported.length, topLevelItems.length, library.name
+				));
 			}
 		}
 
@@ -753,7 +755,7 @@ ZoteroGitHubSync.Exporter = {
 		let lines = [
 			'# Zotero Library',
 			'',
-			'This directory is written by the [Zotero GitHub Sync]'
+			'This directory is written by [Sync & Publish]'
 			+ '(https://github.com/situkangsayur/zotero-github-plugin) plugin. '
 			+ 'Edits made here are not read back into Zotero unless you run **Import from GitHub**.',
 			'',

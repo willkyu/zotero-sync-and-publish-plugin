@@ -2,16 +2,16 @@
 
 ## 兼容性与安装
 
-本扩展名为 **Zotero Quartz Workspace Sync 1.3.0**，沿用上游插件 ID，因此安装后会替换原版 Zotero GitHub Sync，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
+本扩展名为 **Sync & Publish 1.4.0**，沿用上游插件 ID，因此安装后会直接升级原版 Zotero GitHub Sync 并保留已有设置，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
 
 - 插件只保留统一 Workspace 功能；远端传输可选择 System Git 或 GitHub API，两者同步相同的管理路径。
 - Workspace + Better Notes：按 Better Notes 3.3.3 的实际 API 开发；该版本要求 Zotero 8.0-beta.21–10.99.99。
 - 首版运行边界：Windows、macOS 桌面版；只有 Zotero 正在运行时才监听和自动同步。
-- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `zotero-github-sync-1.3.0.xpi`。
+- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `sync-and-publish-1.4.0.xpi`。
 
 ## 新电脑一键配置（推荐）
 
-先安装 Zotero、Better Notes 3.3.x、Obsidian 和本插件。在 Zotero 设置的 **GitHub Sync → Set up a new computer** 中只填写：
+先安装 Zotero、Better Notes 3.3.x、Obsidian 和本插件。在 Zotero 设置的 **Sync & Publish → 设置新电脑** 中只填写：
 
 1. 一个已存在的空目录或已有工作区目录；
 2. GitHub 仓库 URL，例如 `https://github.com/willkyu/research`；

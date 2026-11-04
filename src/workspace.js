@@ -351,7 +351,7 @@ ZoteroGitHubSync.Workspace = {
 			if (!config.owner || !config.repo || !config.branch || !token) {
 				throw new Error('Configure the GitHub owner, repository, branch, and token for API transport.');
 			}
-			ZoteroGitHubSync.Sync._updateProgress({ phase: 'downloading', message: 'Reading the GitHub workspace tree…' });
+			ZoteroGitHubSync.Sync._updateProgress({ phase: 'downloading', message: ZoteroGitHubSync.getString('progress.readingCloud') });
 			api = new ZoteroGitHubSync.WorkspaceAPITransport(config, token);
 			try {
 				let prepared = await api.prepare();
@@ -381,7 +381,7 @@ ZoteroGitHubSync.Workspace = {
 			}
 		}
 
-		ZoteroGitHubSync.Sync._updateProgress({ phase: 'collecting', message: 'Reading Local Workspace…' });
+		ZoteroGitHubSync.Sync._updateProgress({ phase: 'collecting', message: ZoteroGitHubSync.getString('progress.readingLocal') });
 		await ZoteroGitHubSync.Files.loadCache();
 		let before = await this.scanMirror(config);
 		let state = await this.loadState(config);
@@ -463,7 +463,7 @@ ZoteroGitHubSync.Workspace = {
 		let remoteUnsafe = config.workspaceTransport === 'system-git'
 			&& ['blocked', 'diverged', 'remote-pending'].includes(gitState.status);
 		if (remote && apiReady) {
-			ZoteroGitHubSync.Sync._updateProgress({ phase: 'committing', message: 'Publishing managed paths through the GitHub API…' });
+			ZoteroGitHubSync.Sync._updateProgress({ phase: 'committing', message: ZoteroGitHubSync.getString('progress.publishingAPI') });
 			transportResult = await api.finish(trigger);
 			pending += transportResult.pending || 0;
 			warnings.push(...(transportResult.warnings || []));
@@ -472,7 +472,7 @@ ZoteroGitHubSync.Workspace = {
 			transportResult = { status: 'remote-unavailable', commit: null };
 		}
 		else if (remote && config.autoCommit && !remoteUnsafe) {
-			ZoteroGitHubSync.Sync._updateProgress({ phase: 'committing', message: 'Committing managed workspace paths…' });
+			ZoteroGitHubSync.Sync._updateProgress({ phase: 'committing', message: ZoteroGitHubSync.getString('progress.committingWorkspace') });
 			let message = (config.commitMessage || 'Research workspace sync: {changes} ({date})')
 				.replace(/\{changes\}/g, `${changed.length} file(s)`)
 				.replace(/\{added\}/g, String(changed.length))

@@ -18,7 +18,33 @@ window.ZoteroGitHubSyncPrefs = {
 	},
 
 
+	t(key, fallback, ...args) {
+		let value = this.plugin.getString(key, ...args);
+		if (value !== key) return value;
+		for (let arg of args) fallback = fallback.replace('%S', arg);
+		return fallback;
+	},
+
+
+	localize() {
+		for (let element of document.querySelectorAll('[data-zgs-i18n]')) {
+			let key = element.getAttribute('data-zgs-i18n');
+			let value = this.plugin.getString(key);
+			if (value === key) continue;
+			if (element.hasAttribute('label')) element.setAttribute('label', value);
+			else if (element.hasAttribute('value') && element.localName === 'label') element.setAttribute('value', value);
+			else element.textContent = value;
+		}
+		for (let element of document.querySelectorAll('[data-zgs-i18n-placeholder]')) {
+			let key = element.getAttribute('data-zgs-i18n-placeholder');
+			let value = this.plugin.getString(key);
+			if (value !== key) element.setAttribute('placeholder', value);
+		}
+	},
+
+
 	async init() {
+		this.localize();
 		this._tokenStatus = document.getElementById('zgs-token-status');
 		this._status = document.getElementById('zgs-status');
 		this._tokenInput = document.getElementById('zgs-token');
@@ -54,7 +80,7 @@ window.ZoteroGitHubSyncPrefs = {
 		try {
 			let { FilePicker } = ChromeUtils.importESModule('chrome://zotero/content/modules/filePicker.mjs');
 			let picker = new FilePicker();
-			picker.init(window, 'Choose or create the local research workspace', picker.modeGetFolder);
+			picker.init(window, this.t('pref.dialog.quickFolder', 'Choose or create the local research workspace'), picker.modeGetFolder);
 			let result = await picker.show();
 			if (result !== picker.returnOK && result !== picker.returnReplace) return;
 			let path = typeof picker.file === 'string' ? picker.file : picker.file?.path;
@@ -68,26 +94,38 @@ window.ZoteroGitHubSyncPrefs = {
 		let button = document.getElementById('zgs-quick-run');
 		button.disabled = true;
 		this._quickStatus.classList.remove('zgs-error', 'zgs-ok');
-		this._quickStatus.textContent = 'Checking repository and downloading the workspace…';
+		this._quickStatus.textContent = this.t('pref.quick.checking', 'Checking repository and downloading the workspace…');
 		try {
-			if (this.plugin.Sync.isRunning) throw new Error('Wait for the current sync to finish, then run setup again.');
-			if (!this.plugin.BetterNotes.available()) throw new Error('Install Better Notes 3.3.x before setting up this computer.');
+			if (this.plugin.Sync.isRunning) throw new Error(this.t('pref.quick.wait', 'Wait for the current sync to finish, then run setup again.'));
+			if (!this.plugin.BetterNotes.available()) throw new Error(this.t('pref.quick.needBetterNotes', 'Install Better Notes 3.3.x before setting up this computer.'));
 			let workspacePath = this._quickWorkspace.value.trim();
 			if (!workspacePath || !PathUtils.isAbsolute(workspacePath) || !await IOUtils.exists(workspacePath)) {
-				throw new Error('Choose an existing absolute local workspace folder.');
+				throw new Error(this.t('pref.quick.needWorkspace', 'Choose an existing absolute local workspace folder.'));
 			}
 			let stat = await IOUtils.stat(workspacePath);
-			if (stat.type !== 'directory') throw new Error('The local workspace must be a directory.');
-			let parsed = this.plugin.Prefs.parseRepositoryURL(this._quickRepo.value);
+			if (stat.type !== 'directory') throw new Error(this.t('pref.quick.workspaceDirectory', 'The local workspace must be a directory.'));
+			let parsed;
+			try {
+				parsed = this.plugin.Prefs.parseRepositoryURL(this._quickRepo.value);
+			}
+			catch (e) {
+				let keys = {
+					'Enter a GitHub repository URL.': ['pref.quick.needRepo', 'Enter a GitHub repository URL.'],
+					'Enter a valid GitHub repository URL.': ['pref.quick.invalidRepo', 'Enter a valid GitHub repository URL.'],
+					'Repository URL must include an owner and repository.': ['pref.quick.repoOwner', 'Repository URL must include an owner and repository.'],
+				};
+				let [key, fallback] = keys[e.message] || [];
+				throw new Error(key ? this.t(key, fallback) : (e.message || String(e)));
+			}
 			let token = this._quickToken.value.trim() || await this.plugin.Prefs.getToken();
-			if (!token) throw new Error('Enter a GitHub token with Contents: Read and write access.');
+			if (!token) throw new Error(this.t('pref.quick.needToken', 'Enter a GitHub token with Contents: Read and write access.'));
 
 			let client = new this.plugin.GitHub({
 				token, apiURL: parsed.apiURL, owner: parsed.owner, repo: parsed.repo,
 			});
 			let repo = await client.getRepo();
-			if (!repo) throw new Error(`${parsed.owner}/${parsed.repo} is not visible to this token.`);
-			if (repo.permissions?.push === false) throw new Error(`The token cannot write to ${repo.full_name}. Grant Contents: Read and write.`);
+			if (!repo) throw new Error(this.t('pref.quick.repoInvisible', '%S is not visible to this token.', `${parsed.owner}/${parsed.repo}`));
+			if (repo.permissions?.push === false) throw new Error(this.t('pref.quick.repoReadOnly', 'The token cannot write to %S. Grant Contents: Read and write.', repo.full_name));
 			let branch = parsed.branch || repo.default_branch || 'main';
 			let values = {
 				...this.plugin.Prefs.quickSetupValues(workspacePath),
@@ -103,11 +141,11 @@ window.ZoteroGitHubSyncPrefs = {
 			this.plugin.Sync.updateSchedule();
 			let result = await this.plugin.Sync.syncNow({ trigger: 'quick-setup', silent: false });
 			if (['error', 'busy', 'not-configured', 'cancelled'].includes(result.status)) {
-				throw new Error(result.error || `Setup stopped with status: ${result.status}`);
+				throw new Error(result.error || this.t('pref.quick.stopped', 'Setup stopped with status: %S', result.status));
 			}
 			this._quickStatus.textContent = result.pending
-				? `Setup completed with ${result.pending} pending change(s). Review the status below before editing.`
-				: `Setup complete. Restored the workspace and configured ${values.obsidianVaultPath} as the Vault.`;
+				? this.t('pref.quick.pending', 'Setup completed with %S pending change(s). Review the status below before editing.', result.pending)
+				: this.t('pref.quick.complete', 'Setup complete. Restored the workspace and configured %S as the Vault.', values.obsidianVaultPath);
 			this._quickStatus.classList.toggle('zgs-error', !!result.pending);
 			this._quickStatus.classList.toggle('zgs-ok', !result.pending);
 			document.getElementById('zgs-workspace-path').value = workspacePath;
@@ -139,7 +177,9 @@ window.ZoteroGitHubSyncPrefs = {
 		document.getElementById('zgs-github-account').hidden = !api;
 		document.getElementById('zgs-github-repository').hidden = !api;
 		let pause = document.getElementById('zgs-pause');
-		pause.label = config.automationPaused ? 'Resume GitHub automation' : 'Pause GitHub automation';
+		pause.label = config.automationPaused
+			? this.t('pref.automation.resume', 'Resume GitHub automation')
+			: this.t('pref.automation.pause', 'Pause GitHub automation');
 	},
 
 
@@ -147,7 +187,7 @@ window.ZoteroGitHubSyncPrefs = {
 		try {
 			let { FilePicker } = ChromeUtils.importESModule('chrome://zotero/content/modules/filePicker.mjs');
 			let picker = new FilePicker();
-			picker.init(window, 'Choose folder', picker.modeGetFolder);
+			picker.init(window, this.t('pref.dialog.folder', 'Choose folder'), picker.modeGetFolder);
 			let result = await picker.show();
 			if (result !== picker.returnOK && result !== picker.returnReplace) return;
 			let path = typeof picker.file === 'string' ? picker.file : picker.file?.path;
@@ -164,7 +204,7 @@ window.ZoteroGitHubSyncPrefs = {
 		try {
 			let { FilePicker } = ChromeUtils.importESModule('chrome://zotero/content/modules/filePicker.mjs');
 			let picker = new FilePicker();
-			picker.init(window, 'Choose Markdown template', picker.modeOpen);
+			picker.init(window, this.t('pref.dialog.template', 'Choose Markdown template'), picker.modeOpen);
 			picker.appendFilter('Markdown', '*.md');
 			let result = await picker.show();
 			if (result !== picker.returnOK) return;
@@ -179,28 +219,28 @@ window.ZoteroGitHubSyncPrefs = {
 
 	async testWorkspace() {
 		let status = document.getElementById('zgs-local-test-status');
-		status.textContent = 'Checking…';
+		status.textContent = this.t('pref.workspace.checking', 'Checking…');
 		try {
 			let config = this.plugin.Prefs.getConfig();
 			if (!config.workspacePath || !PathUtils.isAbsolute(config.workspacePath)
 				|| !await IOUtils.exists(config.workspacePath)) {
-				throw new Error('Choose an existing absolute workspace directory.');
+				throw new Error(this.t('pref.workspace.needDirectory', 'Choose an existing absolute workspace directory.'));
 			}
 			let transport;
 			if (config.workspaceTransport === 'system-git') {
 				await new this.plugin.LocalGit(config).validate();
-				transport = 'System Git workspace and branch are valid.';
+				transport = this.t('pref.workspace.gitValid', 'System Git workspace and branch are valid.');
 			}
 			else {
 				let token = await this.plugin.Prefs.getToken();
 				if (!token || !config.owner || !config.repo || !config.branch) {
-					throw new Error('Workspace is valid; configure and save the GitHub API repository and token.');
+					throw new Error(this.t('pref.workspace.needAPI', 'Workspace is valid; configure and save the GitHub API repository and token.'));
 				}
-				transport = 'Workspace directory and GitHub API settings are configured.';
+				transport = this.t('pref.workspace.apiValid', 'Workspace directory and GitHub API settings are configured.');
 			}
 			let bn = this.plugin.BetterNotes.available()
-				? `Better Notes ${this.plugin.BetterNotes.version()} detected.`
-				: 'Better Notes public API is unavailable.';
+				? this.t('pref.workspace.bnDetected', 'Better Notes %S detected.', this.plugin.BetterNotes.version())
+				: this.t('pref.workspace.bnUnavailable', 'Better Notes public API is unavailable.');
 			status.textContent = `${transport} ${bn}`;
 			status.classList.toggle('zgs-error', !this.plugin.BetterNotes.available());
 		}
@@ -240,7 +280,7 @@ window.ZoteroGitHubSyncPrefs = {
 	async saveToken() {
 		let token = this._tokenInput.value.trim();
 		if (!token) {
-			this._setTokenStatus('Enter a token first.', 'error');
+			this._setTokenStatus(this.t('pref.token.enter', 'Enter a token first.'), 'error');
 			return;
 		}
 		try {
@@ -248,11 +288,11 @@ window.ZoteroGitHubSyncPrefs = {
 			// Don't leave the secret sitting in the field
 			this._tokenInput.value = '';
 			await this.refreshTokenStatus();
-			this._setTokenStatus('Token saved. Use "Test connection" to check it.', 'ok');
+			this._setTokenStatus(this.t('pref.token.saved', 'Token saved. Use "Test connection" to check it.'), 'ok');
 		}
 		catch (e) {
 			Zotero.logError(e);
-			this._setTokenStatus(`Could not save the token: ${e.message || e}`, 'error');
+			this._setTokenStatus(this.t('pref.token.saveFailed', 'Could not save the token: %S', e.message || e), 'error');
 		}
 	},
 
@@ -261,18 +301,20 @@ window.ZoteroGitHubSyncPrefs = {
 		try {
 			await this.plugin.Prefs.setToken('');
 			this._tokenInput.value = '';
-			this._setTokenStatus('Token removed.', '');
+			this._setTokenStatus(this.t('pref.token.removed', 'Token removed.'), '');
 		}
 		catch (e) {
 			Zotero.logError(e);
-			this._setTokenStatus(`Could not remove the token: ${e.message || e}`, 'error');
+			this._setTokenStatus(this.t('pref.token.removeFailed', 'Could not remove the token: %S', e.message || e), 'error');
 		}
 	},
 
 
 	async refreshTokenStatus() {
 		let token = await this.plugin.Prefs.getToken();
-		this._setTokenStatus(token ? 'A token is saved.' : 'No token saved yet.', '');
+		this._setTokenStatus(token
+			? this.t('pref.token.exists', 'A token is saved.')
+			: this.t('pref.token.missing', 'No token saved yet.'), '');
 	},
 
 
@@ -280,15 +322,15 @@ window.ZoteroGitHubSyncPrefs = {
 		let config = this.plugin.Prefs.getConfig();
 		let token = await this.plugin.Prefs.getToken();
 		if (!token) {
-			this._setTokenStatus('Save a token first.', 'error');
+			this._setTokenStatus(this.t('pref.token.saveFirst', 'Save a token first.'), 'error');
 			return;
 		}
 		if (!config.owner || !config.repo) {
-			this._setTokenStatus('Fill in the owner and repository first.', 'error');
+			this._setTokenStatus(this.t('pref.token.repoFirst', 'Fill in the owner and repository first.'), 'error');
 			return;
 		}
 
-		this._setTokenStatus('Checking…', '');
+		this._setTokenStatus(this.t('pref.workspace.checking', 'Checking…'), '');
 		try {
 			let client = new this.plugin.GitHub({
 				token,
@@ -300,29 +342,32 @@ window.ZoteroGitHubSyncPrefs = {
 			let repo = await client.getRepo();
 
 			if (!repo) {
+				let creation = config.autoCreateRepo
+					? this.t('pref.token.createEnabled', 'If it does not exist, the first sync will try to create it (that needs Administration: Read and write).')
+					: this.t('pref.token.createDisabled', 'Automatic creation is turned off.');
 				this._setTokenStatus(
-					`Signed in as ${user.login}, but ${config.owner}/${config.repo} is not visible to this token. `
-					+ 'If the repository already exists, the token was not given access to it: on GitHub, '
-					+ 'edit the token, choose the repository under Repository access, and set Contents to '
-					+ 'Read and write. '
-					+ (config.autoCreateRepo
-						? 'If it does not exist, the first sync will try to create it (that needs Administration: Read and write).'
-						: 'Automatic creation is turned off.'),
+					this.t('pref.token.repoInvisible',
+						'Signed in as %S, but %S is not visible to this token. If the repository already exists, edit the token on GitHub, choose the repository under Repository access, and set Contents to Read and write. %S',
+						user.login, `${config.owner}/${config.repo}`, creation),
 					'error'
 				);
 				return;
 			}
 			if (!repo.permissions?.push) {
 				this._setTokenStatus(
-					`Signed in as ${user.login}, but the token cannot write to `
-					+ `${repo.full_name}. Grant it Contents: Read and write.`,
+					this.t('pref.token.noWrite',
+						'Signed in as %S, but the token cannot write to %S. Grant it Contents: Read and write.',
+						user.login, repo.full_name),
 					'error'
 				);
 				return;
 			}
 			this._setTokenStatus(
-				`Signed in as ${user.login}. Write access to ${repo.full_name} `
-				+ `(${repo.private ? 'private' : 'public'}), default branch ${repo.default_branch}.`,
+				this.t('pref.token.connected',
+					'Signed in as %S. Write access to %S (%S), default branch %S.',
+					user.login, repo.full_name,
+					repo.private ? this.t('pref.token.private', 'private') : this.t('pref.token.public', 'public'),
+					repo.default_branch),
 				'ok'
 			);
 		}
@@ -386,40 +431,46 @@ window.ZoteroGitHubSyncPrefs = {
 		let sync = this.plugin.Sync;
 		let running = sync.isRunning;
 		if (running) {
-			lines.push(`Syncing: ${sync.describeProgress() || '…'}`, '');
+			lines.push(this.t('pref.status.syncing', 'Syncing: %S', sync.describeProgress() || '…'), '');
 		}
 		document.getElementById('zgs-cancel').hidden = !running;
 		document.getElementById('zgs-sync-now').disabled = running;
 		document.getElementById('zgs-pull').disabled = running;
-		lines.push('Local coordination');
-		lines.push(lastLocalSync ? `Last run: ${lastLocalSync}` : 'Not run yet.');
+		lines.push(this.t('pref.status.local', 'Local coordination'));
+		lines.push(lastLocalSync
+			? this.t('pref.status.lastRun', 'Last run: %S', lastLocalSync)
+			: this.t('pref.status.neverRun', 'Not run yet.'));
 		if (localStatus) {
 			try {
 				let value = JSON.parse(localStatus);
-				lines.push(`Status: ${value.status}; pending: ${value.pending || 0}`);
+				lines.push(this.t('pref.status.state', 'Status: %S; pending: %S', value.status, value.pending || 0));
 			}
 			catch (e) {}
 		}
-		if (localLastError) lines.push(`Last error: ${localLastError}`);
+		if (localLastError) lines.push(this.t('pref.status.lastError', 'Last error: %S', localLastError));
 		if (localLastWarnings) {
-			lines.push('Pending or warnings:', ...localLastWarnings.split('\n').map(line => `  ${line}`));
+			lines.push(this.t('pref.status.warnings', 'Pending or warnings:'), ...localLastWarnings.split('\n').map(line => `  ${line}`));
 		}
 
-		lines.push('', 'GitHub cloud sync');
-		lines.push(lastSync ? `Last run: ${lastSync}` : 'Not run yet.');
+		lines.push('', this.t('pref.status.cloud', 'GitHub cloud sync'));
+		lines.push(lastSync
+			? this.t('pref.status.lastRun', 'Last run: %S', lastSync)
+			: this.t('pref.status.neverRun', 'Not run yet.'));
 		if (lastCommit) {
-			lines.push(`Last commit: ${lastCommit.slice(0, 10)}`);
+			lines.push(this.t('pref.status.lastCommit', 'Last commit: %S', lastCommit.slice(0, 10)));
 		}
 		if (lastError) {
-			lines.push(`Last error: ${lastError}`);
+			lines.push(this.t('pref.status.lastError', 'Last error: %S', lastError));
 		}
 		if (lastWarnings) {
-			lines.push('Pending or warnings:', ...lastWarnings.split('\n').map(line => `  ${line}`));
+			lines.push(this.t('pref.status.warnings', 'Pending or warnings:'), ...lastWarnings.split('\n').map(line => `  ${line}`));
 		}
 		if (cloudStatus) {
 			try {
 				let value = JSON.parse(cloudStatus);
-				lines.push(`Status: ${value.status}; transport: ${value.transport}; remote: ${value.remote}; pending: ${value.pending || 0}`);
+				lines.push(this.t('pref.status.cloudState',
+					'Status: %S; transport: %S; remote: %S; pending: %S',
+					value.status, value.transport, value.remote, value.pending || 0));
 			}
 			catch (e) {}
 		}
