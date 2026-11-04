@@ -125,7 +125,7 @@ zotero-key: "{{itemKey}}"
 
 删除笔记或文献不会自动删除 Markdown/共享图片。删除镜像文件也只会进入待确认；实现不会清空 `zotero/`，也不会删除不在插件管理清单中的文件。
 
-删除一个已绑定的 Zotero 阅读笔记后，后台同步不会复用回收站对象，也不会自动复活笔记；Markdown 与失效绑定会保留。若随后在该父文献上手动选择 **Open Reading Note in Obsidian**，插件会创建新的活动子笔记：已有 Markdown 非空时从其恢复，Markdown 为空时应用当前模板，并把绑定更新为新的 note key。回收站里的旧笔记不会被恢复。
+删除一个已绑定的 Zotero 阅读笔记或其 Markdown 后，自动同步会保留另一端并显示待确认，不会静默删除或重新创建。手动点击 **Sync now** 时会询问是否把删除传播到另一端；如果另一端在上次同步后也有修改，确认框会明确警告。取消则继续保留双方状态。若不想确认删除而是想恢复文件，可在父文献上选择 **Open Reading Note in Obsidian**：缺少 Markdown 时从 Zotero 恢复；Zotero 笔记已删除时从现有 Markdown（为空则用模板）创建新的活动子笔记并更新 note key。
 
 ## 冲突、离线和远端状态
 
@@ -145,7 +145,7 @@ zotero-key: "{{itemKey}}"
 
 Better Notes 3.3.3 已验证支持标题、段落、列表、表格、行内/块公式、普通链接、代码、图片、YAML。它会缓存并保留 YAML 自定义字段。`$libraryID`、`$itemKey`、`$version` 是转换/身份字段，不能删除；其中 `$itemKey` 是**笔记 key**，不是父文献 key。
 
-根据 Better Notes 官方兼容说明：wiki link、callout 可通过其 `[ExportMDFileContent]` 模板保持；本插件不会无提示修改全局模板。任务复选框会丢状态，Obsidian embed 会转成普通图片，所以这两类外部更改不会自动导入 Zotero。概念笔记、首页、索引等普通 Markdown 从不进入 Zotero 富文本转换。
+根据 Better Notes 官方兼容说明：wiki link、callout 可通过其 `[ExportMDFileContent]` 模板保持；本插件不会无提示修改全局模板。任务复选框和 Obsidian embed 没有无损 Zotero 表示：Obsidian 修改仍会导入一个简化的 Zotero 副本，但 Markdown 原文保持权威且不会被回写覆盖；若随后从 Zotero 反向修改，状态会变为 `unsupported-markdown`，等待先处理这些外部语法。概念笔记、首页、索引等普通 Markdown 从不进入 Zotero 富文本转换。
 
 ## 构建与测试
 

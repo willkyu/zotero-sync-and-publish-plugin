@@ -500,16 +500,36 @@ ZoteroGitHubSync.BetterNotes = {
 	async coordinate(binding, config, options = {}) {
 		let note = await this.resolveItem(binding.library, binding.noteKey);
 		let parent = await this.resolveItem(binding.library, binding.parentKey);
-		if (!note?.isNote?.() || note.deleted || !parent || parent.deleted) return { status: 'waiting-identity', pending: 1 };
+		if (!parent || parent.deleted) return { status: 'waiting-identity', pending: 1 };
 		let absolutePath = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
-		let imageResult = await this.coordinateImages(binding, note, config);
-		if (imageResult.pending.length) return { status: 'image-conflict', pending: 1, warnings: imageResult.pending };
+		let fileExists = await IOUtils.exists(absolutePath);
+		if (!note?.isNote?.() || note.deleted) {
+			let md = fileExists ? await this.api.sync.getMDStatus(absolutePath) : null;
+			let fileChanged = !!md && this.md5(md.content) !== binding.md5;
+			return {
+				status: fileExists ? 'zotero-note-deleted' : 'reading-note-deleted-both',
+				pending: 1, deletion: { side: fileExists ? 'zotero' : 'both', changed: fileChanged },
+				warnings: [fileExists
+					? `${binding.path}: Zotero note was deleted${fileChanged ? ' while Markdown also changed' : ''}; run manual Sync now to confirm deletion.`
+					: `${binding.path}: Zotero note and Markdown are both absent; run manual Sync now to remove the stale binding.`],
+			};
+		}
 
 		let before = await this.snapshot(note, absolutePath);
 		if (!before.exists) {
+			if (!options.restoreMissingMarkdown) {
+				let noteChanged = before.noteMd5 !== binding.noteMd5;
+				return {
+					status: 'markdown-deleted', pending: 1,
+					deletion: { side: 'markdown', changed: noteChanged },
+					warnings: [`${binding.path}: Markdown was deleted${noteChanged ? ' while the Zotero note also changed' : ''}; run manual Sync now to confirm deletion.`],
+				};
+			}
 			if (!options.allowVisibleEditor && this.activeNoteIDs().has(note.id)) return { status: 'editing', pending: 1 };
 			await this.exportNote(note, absolutePath);
 		}
+		let imageResult = await this.coordinateImages(binding, note, config);
+		if (imageResult.pending.length) return { status: 'image-conflict', pending: 1, warnings: imageResult.pending };
 
 		before = await this.snapshot(note, absolutePath);
 		let citationResult = await this.coordinateCitationKey(parent, before.md?.meta);
@@ -527,9 +547,9 @@ ZoteroGitHubSync.BetterNotes = {
 		if (!options.allowVisibleEditor && (mdChanged || noteChanged) && this.activeNoteIDs().has(note.id)) {
 			return { status: 'editing', pending: 1 };
 		}
-		if (mdChanged || noteChanged) {
-			let unsafe = this.unsafeMarkdown(before.md?.content || '');
-			if (unsafe.length) return { status: 'unsupported-markdown', pending: 1, warnings: [`${binding.path}: ${unsafe.join(', ')}`] };
+		let unsafe = (mdChanged || noteChanged) ? this.unsafeMarkdown(before.md?.content || '') : [];
+		if (noteChanged && unsafe.length) {
+			return { status: 'unsupported-markdown', pending: 1, warnings: [`${binding.path}: Zotero changes cannot overwrite external-only ${unsafe.join(', ')}`] };
 		}
 
 		this.register(note, absolutePath, { md5: binding.md5, noteMd5: binding.noteMd5 });
@@ -543,7 +563,10 @@ ZoteroGitHubSync.BetterNotes = {
 			if (!imported) {
 				return { status: 'not-complete', pending: 1, warnings: [`${binding.path}: Better Notes did not complete Markdown import`] };
 			}
-			await this.exportNote(note, absolutePath, before.md?.meta || {});
+			// Task boxes and Obsidian embeds have no lossless Zotero representation.
+			// Import the best-effort native copy, but keep the external Markdown as
+			// the authority instead of exporting the simplified HTML back over it.
+			if (!unsafe.length) await this.exportNote(note, absolutePath, before.md?.meta || {});
 		}
 		else if (noteChanged) {
 			await this.exportNote(note, absolutePath, before.md?.meta || {});
@@ -561,22 +584,51 @@ ZoteroGitHubSync.BetterNotes = {
 		binding.updated = new Date().toISOString();
 		this.register(note, absolutePath, after);
 		return {
-			status: mdChanged ? 'imported-markdown'
+			status: mdChanged && unsafe.length ? 'imported-markdown-external-syntax'
+				: mdChanged ? 'imported-markdown'
 				: noteChanged ? 'exported-note'
 					: citationResult.changed ? 'updated-citation-key' : 'up-to-date',
 			pending: 0,
+			warnings: mdChanged && unsafe.length
+				? [`${binding.path}: kept ${unsafe.join(', ')} in Markdown; Zotero contains a simplified representation.`] : [],
 		};
 	},
 
-	async coordinateAll(bindings, config) {
+	async resolveDeletion(binding, result, config) {
+		let note = await this.resolveItem(binding.library, binding.noteKey);
+		let absolutePath = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
+		let changed = result.deletion.changed
+			? '\n\nThe other side also changed after the last successful sync. Confirming will discard that remaining copy.' : '';
+		let message = result.deletion.side === 'zotero'
+			? `The Zotero reading note was deleted. Also delete its Markdown file?${changed}`
+			: result.deletion.side === 'markdown'
+				? `The Markdown reading note was deleted. Also move its Zotero note to Trash?${changed}`
+				: 'The Zotero note and Markdown file are both absent. Remove their stale binding?';
+		if (!Zotero.getMainWindow()?.confirm(message)) return result;
+		if (result.deletion.side === 'zotero') {
+			await IOUtils.remove(absolutePath, { ignoreAbsent: true });
+		}
+		else if (result.deletion.side === 'markdown' && note?.isNote?.() && !note.deleted) {
+			note.deleted = true;
+			await note.saveTx();
+		}
+		return { status: 'deleted-reading-note', pending: 0, removeBinding: true, warnings: [] };
+	},
+
+	async coordinateAll(bindings, config, options = {}) {
 		if (!this.available()) {
 			return { pending: bindings.length, warnings: bindings.length ? ['Better Notes 3.3.x is not installed or its public API is unavailable.'] : [], results: [] };
 		}
 		let results = [];
 		let warnings = [];
+		let removed = new Set();
 		for (let binding of bindings) {
 			try {
 				let result = await this.coordinate(binding, config);
+				if (result.deletion && options.confirmDeletions) {
+					result = await this.resolveDeletion(binding, result, config);
+				}
+				if (result.removeBinding) removed.add(binding);
 				results.push({ path: binding.path, ...result });
 				warnings.push(...(result.warnings || []));
 			}
@@ -584,6 +636,9 @@ ZoteroGitHubSync.BetterNotes = {
 				results.push({ path: binding.path, status: 'error', pending: 1 });
 				warnings.push(`${binding.path}: ${e.message || e}`);
 			}
+		}
+		if (removed.size) {
+			bindings.splice(0, bindings.length, ...bindings.filter(binding => !removed.has(binding)));
 		}
 		return { results, warnings, pending: results.reduce((n, r) => n + (r.pending || 0), 0) };
 	},
@@ -766,7 +821,7 @@ ZoteroGitHubSync.BetterNotes = {
 		// A note selected in Zotero is displayed in a live right-hand editor.
 		// Its pending input was flushed above, so that display alone must not
 		// prevent coordination of the Markdown file that is about to be opened.
-		let result = await this.coordinate(binding, config, { allowVisibleEditor: true });
+		let result = await this.coordinate(binding, config, { allowVisibleEditor: true, restoreMissingMarkdown: true });
 		if (result.pending) throw new Error(`Reading note is not ready: ${result.status}`);
 		await data.save();
 		let uri = ZoteroGitHubSync.Workspace.obsidianURI(config, absolute);
