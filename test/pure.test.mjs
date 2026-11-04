@@ -6,9 +6,16 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 const SRC = fileURLToPath(new URL('../src', import.meta.url));
 globalThis.ZoteroGitHubSync = { log(){}, warn(){}, logError: console.error, version: '0.2.0', getString: k => k };
-for (const f of ['utils.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'workspace-api.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
+for (const f of ['utils.js', 'prefs.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'workspace-api.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
 const U = ZoteroGitHubSync.Utils, E = ZoteroGitHubSync.Exporter, I = ZoteroGitHubSync.Importer;
 const G = ZoteroGitHubSync.LocalGit, API = ZoteroGitHubSync.WorkspaceAPITransport, BN = ZoteroGitHubSync.BetterNotes, W = ZoteroGitHubSync.Workspace;
+{
+  const prefs = ZoteroGitHubSync.Prefs;
+  const originalGet = prefs.get;
+  prefs.get = () => false;
+  assert.equal(prefs.getConfig().syncOnChange, true, 'workspace change sync cannot be disabled except by pausing automation');
+  prefs.get = originalGet;
+}
 
 // base64 across block boundaries
 for (const n of [0, 1, 2, 3, 3*1024*1024 - 1, 3*1024*1024, 3*1024*1024 + 1, 7*1024*1024 + 2]) {

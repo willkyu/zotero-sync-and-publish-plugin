@@ -594,17 +594,9 @@ ZoteroGitHubSync.BetterNotes = {
 		};
 	},
 
-	async resolveDeletion(binding, result, config) {
+	async applyDeletion(binding, result, config) {
 		let note = await this.resolveItem(binding.library, binding.noteKey);
 		let absolutePath = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
-		let changed = result.deletion.changed
-			? '\n\nThe other side also changed after the last successful sync. Confirming will discard that remaining copy.' : '';
-		let message = result.deletion.side === 'zotero'
-			? `The Zotero reading note was deleted. Also delete its Markdown file?${changed}`
-			: result.deletion.side === 'markdown'
-				? `The Markdown reading note was deleted. Also move its Zotero note to Trash?${changed}`
-				: 'The Zotero note and Markdown file are both absent. Remove their stale binding?';
-		if (!Zotero.getMainWindow()?.confirm(message)) return result;
 		if (result.deletion.side === 'zotero') {
 			await IOUtils.remove(absolutePath, { ignoreAbsent: true });
 		}
@@ -612,10 +604,15 @@ ZoteroGitHubSync.BetterNotes = {
 			note.deleted = true;
 			await note.saveTx();
 		}
-		return { status: 'deleted-reading-note', pending: 0, removeBinding: true, warnings: [] };
+		let source = result.deletion.side === 'zotero' ? 'Zotero'
+			: result.deletion.side === 'markdown' ? 'Markdown' : 'both sides';
+		return {
+			status: 'deleted-reading-note', pending: 0, removeBinding: true,
+			warnings: [`${binding.path}: deletion from ${source} was applied everywhere${result.deletion.changed ? '; a later edit on the remaining side was discarded by delete-wins policy' : ''}.`],
+		};
 	},
 
-	async coordinateAll(bindings, config, options = {}) {
+	async coordinateAll(bindings, config) {
 		if (!this.available()) {
 			return { pending: bindings.length, warnings: bindings.length ? ['Better Notes 3.3.x is not installed or its public API is unavailable.'] : [], results: [] };
 		}
@@ -625,9 +622,7 @@ ZoteroGitHubSync.BetterNotes = {
 		for (let binding of bindings) {
 			try {
 				let result = await this.coordinate(binding, config);
-				if (result.deletion && options.confirmDeletions) {
-					result = await this.resolveDeletion(binding, result, config);
-				}
+				if (result.deletion) result = await this.applyDeletion(binding, result, config);
 				if (result.removeBinding) removed.add(binding);
 				results.push({ path: binding.path, ...result });
 				warnings.push(...(result.warnings || []));

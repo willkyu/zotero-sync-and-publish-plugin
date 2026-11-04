@@ -368,15 +368,9 @@ ZoteroGitHubSync.Workspace = {
 		let discovered = await ZoteroGitHubSync.BetterNotes.discoverBindings(bindings, config);
 		warnings.push(...discovered.warnings);
 		pending += discovered.warnings.length;
-		let noteResult = await ZoteroGitHubSync.BetterNotes.coordinateAll(bindings, config, { confirmDeletions: !silent });
+		let noteResult = await ZoteroGitHubSync.BetterNotes.coordinateAll(bindings, config);
 		pending += noteResult.pending;
 		warnings.push(...noteResult.warnings);
-		let pendingNoteDeletions = noteResult.results.filter(result => result.deletion);
-		if (api) {
-			// Keep a missing reading-note path undecided in the API transport until
-			// the user confirms whether the deletion should cross into Zotero.
-			for (let result of pendingNoteDeletions) api.conflicts.add(result.path);
-		}
 		await this.saveBindings(config, bindings);
 
 		// Better Notes may have changed native note HTML. Build again so JSON and
@@ -388,11 +382,7 @@ ZoteroGitHubSync.Workspace = {
 		let changed = await this.writeExport(config, finalExport.files, keptPaths);
 		let transportResult = { status: 'not-run' };
 		let remoteUnsafe = config.workspaceTransport === 'system-git'
-			&& (['blocked', 'diverged', 'remote-pending'].includes(gitState.status)
-				|| pendingNoteDeletions.length > 0);
-		if (config.workspaceTransport === 'system-git' && pendingNoteDeletions.length) {
-			warnings.push('System Git commit is paused until the reading-note deletion is confirmed with manual Sync now.');
-		}
+			&& ['blocked', 'diverged', 'remote-pending'].includes(gitState.status);
 		if (apiReady) {
 			ZoteroGitHubSync.Sync._updateProgress({ phase: 'committing', message: 'Publishing managed paths through the GitHub API…' });
 			transportResult = await api.finish(trigger);

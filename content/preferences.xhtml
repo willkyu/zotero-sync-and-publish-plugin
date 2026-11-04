@@ -139,8 +139,7 @@
 			</hbox>
 
 			<hbox align="center">
-				<checkbox id="zgs-sync-on-change" label="Sync after the library changes, waiting"
-						preference="extensions.zotero-github-sync.syncOnChange"/>
+				<label value="Automatically sync saved Zotero and workspace changes after waiting"/>
 				<html:input id="zgs-change-delay" type="text" size="5"
 						preference="extensions.zotero-github-sync.changeDelayMinutes"/>
 				<label value="minutes for edits to settle"/>
@@ -153,8 +152,8 @@
 					preference="extensions.zotero-github-sync.syncAfterZoteroSync"/>
 
 			<html:div class="zgs-hint">
-				A sync that finds nothing to change makes no commit. Short intervals still perform
-				remote checks through the selected transport.
+				Saved local changes always synchronize automatically unless automation is paused.
+				A sync that finds nothing to change makes no commit. Short intervals still perform remote checks.
 			</html:div>
 		</groupbox>
 
