@@ -478,14 +478,12 @@ ZoteroGitHubSync.BetterNotes = {
 		}
 		await this.flushNoteEditors(note.id);
 		let absolute = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
-		if (!await IOUtils.exists(absolute)) {
-			// A note selected in Zotero is displayed in a live right-hand editor.
-			// Its pending input was flushed above, so that display alone must not
-			// prevent creation of the Markdown file that is about to be opened.
-			let result = await this.coordinate(binding, config, { allowVisibleEditor: true });
-			if (result.pending) throw new Error(`Reading note is not ready: ${result.status}`);
-			await data.save();
-		}
+		// A note selected in Zotero is displayed in a live right-hand editor.
+		// Its pending input was flushed above, so that display alone must not
+		// prevent coordination of the Markdown file that is about to be opened.
+		let result = await this.coordinate(binding, config, { allowVisibleEditor: true });
+		if (result.pending) throw new Error(`Reading note is not ready: ${result.status}`);
+		await data.save();
 		let uri = ZoteroGitHubSync.Workspace.obsidianURI(config, absolute);
 		Zotero.launchURL(uri);
 		return { binding, uri };
