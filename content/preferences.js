@@ -51,7 +51,7 @@ window.ZoteroGitHubSyncPrefs = {
 		document.getElementById('zgs-github-account').hidden = !api;
 		document.getElementById('zgs-github-repository').hidden = !api;
 		let pause = document.getElementById('zgs-pause');
-		pause.label = config.automationPaused ? 'Resume automation' : 'Pause automation';
+		pause.label = config.automationPaused ? 'Resume GitHub automation' : 'Pause GitHub automation';
 	},
 
 
@@ -284,11 +284,15 @@ window.ZoteroGitHubSyncPrefs = {
 
 	refreshStatus() {
 		let prefs = this.plugin.Prefs;
+		let lastLocalSync = prefs.get('lastLocalSync');
+		let localLastError = prefs.get('localLastError');
+		let localLastWarnings = prefs.get('localLastWarnings');
+		let localStatus = prefs.get('localStatus');
 		let lastSync = prefs.get('lastSync');
 		let lastCommit = prefs.get('lastCommit');
 		let lastError = prefs.get('lastError');
 		let lastWarnings = prefs.get('lastWarnings');
-		let localStatus = prefs.get('localStatus');
+		let cloudStatus = prefs.get('cloudStatus');
 
 		let lines = [];
 		let sync = this.plugin.Sync;
@@ -299,7 +303,22 @@ window.ZoteroGitHubSyncPrefs = {
 		document.getElementById('zgs-cancel').hidden = !running;
 		document.getElementById('zgs-sync-now').disabled = running;
 		document.getElementById('zgs-pull').disabled = running;
-		lines.push(lastSync ? `Last sync: ${lastSync}` : 'Never synced.');
+		lines.push('Local coordination');
+		lines.push(lastLocalSync ? `Last run: ${lastLocalSync}` : 'Not run yet.');
+		if (localStatus) {
+			try {
+				let value = JSON.parse(localStatus);
+				lines.push(`Status: ${value.status}; pending: ${value.pending || 0}`);
+			}
+			catch (e) {}
+		}
+		if (localLastError) lines.push(`Last error: ${localLastError}`);
+		if (localLastWarnings) {
+			lines.push('Pending or warnings:', ...localLastWarnings.split('\n').map(line => `  ${line}`));
+		}
+
+		lines.push('', 'GitHub cloud sync');
+		lines.push(lastSync ? `Last run: ${lastSync}` : 'Not run yet.');
 		if (lastCommit) {
 			lines.push(`Last commit: ${lastCommit.slice(0, 10)}`);
 		}
@@ -309,16 +328,16 @@ window.ZoteroGitHubSyncPrefs = {
 		if (lastWarnings) {
 			lines.push('Pending or warnings:', ...lastWarnings.split('\n').map(line => `  ${line}`));
 		}
-		if (localStatus) {
+		if (cloudStatus) {
 			try {
-				let value = JSON.parse(localStatus);
-				lines.push(`Workspace: ${value.status}; transport: ${value.transport || 'system-git'}; remote: ${value.remote || value.git}; pending: ${value.pending}`);
+				let value = JSON.parse(cloudStatus);
+				lines.push(`Status: ${value.status}; transport: ${value.transport}; remote: ${value.remote}; pending: ${value.pending || 0}`);
 			}
 			catch (e) {}
 		}
 
 		this._status.textContent = lines.join('\n');
-		this._status.classList.toggle('zgs-error', !!lastError);
+		this._status.classList.toggle('zgs-error', !!(lastError || localLastError));
 	},
 
 

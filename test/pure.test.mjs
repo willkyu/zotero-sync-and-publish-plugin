@@ -13,8 +13,32 @@ const G = ZoteroGitHubSync.LocalGit, API = ZoteroGitHubSync.WorkspaceAPITranspor
   const prefs = ZoteroGitHubSync.Prefs;
   const originalGet = prefs.get;
   prefs.get = () => false;
-  assert.equal(prefs.getConfig().syncOnChange, true, 'workspace change sync cannot be disabled except by pausing automation');
+  assert.equal(prefs.getConfig().syncOnChange, false, 'syncOnChange remains a GitHub-only preference');
   prefs.get = originalGet;
+}
+{
+  const originalResolve = BN.resolveItem;
+  BN.resolveItem = async (_library, key) => key === 'PARENT01' ? { deleted: true } : { isNote: () => true };
+  const result = await BN.coordinate({ library: {}, noteKey: 'NOTE0001', parentKey: 'PARENT01', path: 'content/papers/paper.md' }, {});
+  assert.equal(result.status, 'parent-deleted-markdown-retained');
+  assert.equal(result.pending, 0);
+  assert.equal(result.removeBinding, true);
+  BN.resolveItem = originalResolve;
+}
+{
+  const prefs = ZoteroGitHubSync.Prefs, sync = ZoteroGitHubSync.Sync;
+  const originalConfig = prefs.getConfig;
+  prefs.getConfig = () => ({ automationPaused: true, syncOnChange: true, changeDelayMinutes: 2 });
+  sync.scheduleWorkspaceChange();
+  assert.ok(sync._localTimer, 'workspace changes always schedule local coordination');
+  assert.equal(sync._remoteChangeTimer, null, 'paused GitHub automation does not schedule a cloud run');
+  sync._clearTimer('_localTimer');
+  prefs.getConfig = () => ({ automationPaused: false, syncOnChange: false, changeDelayMinutes: 2 });
+  sync.scheduleWorkspaceChange();
+  assert.ok(sync._localTimer, 'disabling GitHub-on-change does not disable local coordination');
+  assert.equal(sync._remoteChangeTimer, null);
+  sync._clearTimer('_localTimer');
+  prefs.getConfig = originalConfig;
 }
 
 // base64 across block boundaries

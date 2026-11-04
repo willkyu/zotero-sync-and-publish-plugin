@@ -43,8 +43,8 @@
 			</hbox>
 			<checkbox label="Sync note images (independent of PDFs)" preference="extensions.zotero-github-sync.includeNoteImagesLocal"/>
 			<checkbox label="Sync original PDFs and other literature attachments" preference="extensions.zotero-github-sync.includePDFsLocal"/>
-			<checkbox label="Automatically publish managed workspace changes" preference="extensions.zotero-github-sync.autoCommit"/>
-			<checkbox id="zgs-system-auto-push" label="Automatically push after a successful system Git commit" preference="extensions.zotero-github-sync.autoPush"/>
+			<checkbox label="Automatically commit/publish managed paths to GitHub" preference="extensions.zotero-github-sync.autoCommit"/>
+			<checkbox id="zgs-system-auto-push" label="Automatically push GitHub after a successful system Git commit" preference="extensions.zotero-github-sync.autoPush"/>
 			<hbox align="center">
 				<label value="Obsidian Vault path"/><html:input id="zgs-vault-path" type="text" flex="1" preference="extensions.zotero-github-sync.obsidianVaultPath"/>
 				<button label="Choose…" oncommand="ZoteroGitHubSyncPrefs.chooseFolder('obsidianVaultPath', 'zgs-vault-path')"/>
@@ -60,7 +60,7 @@
 			<html:div class="zgs-hint">Applied when “Open Reading Note in Obsidian” creates a new child note, or repairs a completely empty note. Supports {{title}}, {{authors}}, {{year}}, {{date:YYYY-MM-DD}}, Zotero field names, and the variables documented in the Chinese guide.</html:div>
 			<hbox>
 				<button label="Validate workspace" oncommand="ZoteroGitHubSyncPrefs.testWorkspace()"/>
-				<button id="zgs-pause" label="Pause automation" oncommand="ZoteroGitHubSyncPrefs.togglePause()"/>
+				<button id="zgs-pause" label="Pause GitHub automation" oncommand="ZoteroGitHubSyncPrefs.togglePause()"/>
 			</hbox>
 			<html:div id="zgs-local-test-status" class="zgs-status"/>
 		</groupbox>
@@ -139,7 +139,8 @@
 			</hbox>
 
 			<hbox align="center">
-				<label value="Automatically sync saved Zotero and workspace changes after waiting"/>
+				<checkbox id="zgs-sync-on-change" label="Sync GitHub after local changes, waiting"
+						preference="extensions.zotero-github-sync.syncOnChange"/>
 				<html:input id="zgs-change-delay" type="text" size="5"
 						preference="extensions.zotero-github-sync.changeDelayMinutes"/>
 				<label value="minutes for edits to settle"/>
@@ -152,8 +153,8 @@
 					preference="extensions.zotero-github-sync.syncAfterZoteroSync"/>
 
 			<html:div class="zgs-hint">
-				Saved local changes always synchronize automatically unless automation is paused.
-				A sync that finds nothing to change makes no commit. Short intervals still perform remote checks.
+				These controls apply only to GitHub. Zotero ↔ local mirror and Zotero note ↔ Obsidian
+				always coordinate locally while Zotero is running. Pause GitHub automation affects only GitHub.
 			</html:div>
 		</groupbox>
 
@@ -189,7 +190,7 @@
 			<html:div id="zgs-status" class="zgs-status"/>
 
 			<hbox align="center" pack="start">
-				<button id="zgs-sync-now" label="Sync now"
+				<button id="zgs-sync-now" label="Sync GitHub now"
 						oncommand="ZoteroGitHubSyncPrefs.syncNow()"/>
 				<button id="zgs-cancel" label="Cancel sync" hidden="true"
 						oncommand="ZoteroGitHubSyncPrefs.cancel()"/>

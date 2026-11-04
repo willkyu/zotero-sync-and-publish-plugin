@@ -7,11 +7,11 @@ Updated: 2026-11-04
 - One unified Local Workspace with selectable System Git or GitHub API transport.
 - Configurable repository, Git executable, remote, branch, commit scope, papers/assets/Vault/template paths.
 - Local deterministic JSON export, atomic writes, safe managed-file list and conservative three-way import.
-- Empty-library bootstrap by stable keys; no local delete import and no automatic cross-computer delete.
+- Empty-library bootstrap by stable keys plus automatic, baseline-backed local deletion propagation.
 - Better Notes 3.3.3 adapter, shared bindings, hash-based direction choice, active-editor deferral and post-call completion checks.
 - Separate image/PDF policy, image byte hashes, missing-storage repair and same-name update detection.
 - Standard Obsidian `open` URI from context menu and keyboard shortcut; reuse/recover/create behavior.
-- Zotero-change, content-change, startup, interval and manual triggers with queued events during a running sync.
+- Always-on local Zotero/workspace coordination, separate GitHub startup/interval/change/manual triggers, and queued events during a running operation.
 - System Git fetch/fast-forward/add/commit/push with staged/index/operation safeguards and no force push.
 - Whole-workspace GitHub API tree synchronization with a machine-local three-way base, atomic downloads, safe deletion rules, conflict preservation and non-force ref updates.
 - Fork update identity/version strategy, Chinese manual and architecture record.
@@ -37,10 +37,10 @@ Updated: 2026-11-04
 
 ## Known limitations
 
-- Zotero mirror item deletions remain pending and require manual Zotero reconciliation; Markdown is never deleted merely because a literature item disappeared. API transport may apply an ordinary workspace-file deletion only when the unchanged opposite side still matches the machine-local base.
+- Local deletion is intentionally automatic: deleting a bound child note or Markdown deletes the other representation; deleting a managed parent-item JSON trashes the matching Zotero item. Deleting a parent literature item retains its research Markdown as an ordinary Vault document.
 - Dual edits do not attempt an automatic textual merge.
 - Task checkboxes and Obsidian embeds are deliberately blocked from native-note import because Better Notes 3.3.3 cannot preserve them losslessly.
 - Better Notes Local Workspace integration requires Better Notes 3.3.3-compatible API and therefore its Zotero 8+ compatibility range.
-- Filesystem automation runs only while Zotero is open and polls saved `content/` state every 30 seconds.
+- Local automation runs only while Zotero is open and polls saved managed-path state every 5 seconds. It is not a native OS filesystem watcher.
 - GitHub API transport uses ordinary Git blobs and skips individual files over 95 MB; Git LFS repositories require System Git transport.
 - The optional “open reading note whenever a PDF opens” and managed-note double-click override were not enabled; the explicit context menu/shortcut is implemented and avoids changing Zotero's default double-click behavior.

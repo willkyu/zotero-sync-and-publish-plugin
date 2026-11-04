@@ -95,7 +95,7 @@ var ZoteroGitHubSync = {
 	_strings: {
 		'en-US': {
 			'menu.root': 'Workspace Sync',
-			'menu.syncNow': 'Sync Workspace Now',
+			'menu.syncNow': 'Sync Workspace to GitHub Now',
 			'menu.syncSelected': 'Sync Selected Items to GitHub',
 			'menu.syncCollection': 'Sync This Collection to GitHub',
 			'menu.pull': 'Import from GitHub…',

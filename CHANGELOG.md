@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] — 2026-11-04
+
+### Changed
+
+- Split always-on local Zotero/workspace/Obsidian coordination from configurable GitHub cloud synchronization. Startup, interval, after-change and pause settings now affect GitHub only.
+- Local Zotero notifications coordinate after a short debounce and managed workspace paths are polled every five seconds.
+- Local deletions use an automatic delete-wins policy without confirmation. A deleted parent paper removes its mirror and binding while retaining the research Markdown.
+- Preferences now report local coordination and GitHub cloud status separately.
+
 ## [1.1.0] — 2026-11-04
 
 ### Added

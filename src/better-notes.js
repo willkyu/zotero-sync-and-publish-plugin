@@ -500,7 +500,15 @@ ZoteroGitHubSync.BetterNotes = {
 	async coordinate(binding, config, options = {}) {
 		let note = await this.resolveItem(binding.library, binding.noteKey);
 		let parent = await this.resolveItem(binding.library, binding.parentKey);
-		if (!parent || parent.deleted) return { status: 'waiting-identity', pending: 1 };
+		if (!parent) return { status: 'waiting-identity', pending: 1 };
+		if (parent.deleted) {
+			// A paper deletion removes its Zotero mirror, but the user's research
+			// Markdown remains an ordinary standalone Vault document.
+			return {
+				status: 'parent-deleted-markdown-retained', pending: 0, removeBinding: true,
+				warnings: [`${binding.path}: parent Zotero item was deleted; the Markdown research note was retained.`],
+			};
+		}
 		let absolutePath = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
 		let fileExists = await IOUtils.exists(absolutePath);
 		if (!note?.isNote?.() || note.deleted) {
@@ -510,8 +518,8 @@ ZoteroGitHubSync.BetterNotes = {
 				status: fileExists ? 'zotero-note-deleted' : 'reading-note-deleted-both',
 				pending: 1, deletion: { side: fileExists ? 'zotero' : 'both', changed: fileChanged },
 				warnings: [fileExists
-					? `${binding.path}: Zotero note was deleted${fileChanged ? ' while Markdown also changed' : ''}; run manual Sync now to confirm deletion.`
-					: `${binding.path}: Zotero note and Markdown are both absent; run manual Sync now to remove the stale binding.`],
+					? `${binding.path}: Zotero note was deleted${fileChanged ? ' while Markdown also changed' : ''}; automatic delete-wins policy will remove the Markdown copy.`
+					: `${binding.path}: Zotero note and Markdown are both absent; the stale binding will be removed automatically.`],
 			};
 		}
 
@@ -522,7 +530,7 @@ ZoteroGitHubSync.BetterNotes = {
 				return {
 					status: 'markdown-deleted', pending: 1,
 					deletion: { side: 'markdown', changed: noteChanged },
-					warnings: [`${binding.path}: Markdown was deleted${noteChanged ? ' while the Zotero note also changed' : ''}; run manual Sync now to confirm deletion.`],
+					warnings: [`${binding.path}: Markdown was deleted${noteChanged ? ' while the Zotero note also changed' : ''}; automatic delete-wins policy will trash the Zotero note.`],
 				};
 			}
 			if (!options.allowVisibleEditor && this.activeNoteIDs().has(note.id)) return { status: 'editing', pending: 1 };

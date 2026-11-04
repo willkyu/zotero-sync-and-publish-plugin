@@ -55,11 +55,13 @@ pref("extensions.zotero-github-sync.lfsThresholdMB", 50);
 pref("extensions.zotero-github-sync.lfsURL", "");
 pref("extensions.zotero-github-sync.prune", true);
 
-// -- Triggers --------------------------------------------------------------
-// Periodic sync
+// -- GitHub triggers -------------------------------------------------------
+// Local Zotero <-> workspace coordination is always enabled while Zotero is
+// running. These preferences schedule only the GitHub transport layer.
+// Periodic GitHub sync
 pref("extensions.zotero-github-sync.intervalEnabled", true);
 pref("extensions.zotero-github-sync.intervalMinutes", 60);
-// Sync a while after the library changes
+// Sync GitHub a while after a local change
 pref("extensions.zotero-github-sync.syncOnChange", true);
 pref("extensions.zotero-github-sync.changeDelayMinutes", 2);
 // Sync once, shortly after Zotero starts
@@ -78,4 +80,10 @@ pref("extensions.zotero-github-sync.lastCommit", "");
 pref("extensions.zotero-github-sync.lastError", "");
 pref("extensions.zotero-github-sync.lastWarnings", "");
 pref("extensions.zotero-github-sync.pendingReview", 0);
+pref("extensions.zotero-github-sync.localPendingReview", 0);
+pref("extensions.zotero-github-sync.cloudPendingReview", 0);
 pref("extensions.zotero-github-sync.localStatus", "");
+pref("extensions.zotero-github-sync.cloudStatus", "");
+pref("extensions.zotero-github-sync.lastLocalSync", "");
+pref("extensions.zotero-github-sync.localLastError", "");
+pref("extensions.zotero-github-sync.localLastWarnings", "");

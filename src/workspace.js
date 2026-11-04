@@ -8,7 +8,7 @@
 
 ZoteroGitHubSync.Workspace = {
 	BINDINGS_FILE: '.zotero-sync/bindings.json',
-	STATE_VERSION: 1,
+	STATE_VERSION: 2,
 	_pollTimer: null,
 	_pollFingerprint: '',
 
@@ -46,10 +46,10 @@ ZoteroGitHubSync.Workspace = {
 	},
 
 	statePath(config) {
-		let remote = config.workspaceTransport === 'github-api'
-			? [config.apiURL, config.owner, config.repo, config.branch].join('/')
-			: [config.gitRemote, config.gitBranch].join('/');
-		let identity = [this.normalize(config.workspacePath).toLowerCase(), config.workspaceTransport, remote].join('\n');
+		// Local coordination is independent of GitHub transport, repository and
+		// branch. Two cloud configurations for the same workspace must share the
+		// same Zotero <-> mirror baseline.
+		let identity = [this.normalize(config.workspacePath).toLowerCase(), config.basePath].join('\n');
 		let id = Zotero.Utilities.Internal.md5(identity, false);
 		return PathUtils.join(Zotero.Profile.dir, 'zotero-quartz-workspace', `state-${id}.json`);
 	},
@@ -60,17 +60,49 @@ ZoteroGitHubSync.Workspace = {
 			if (!await IOUtils.exists(path)) return null;
 			let data = await IOUtils.readJSON(path);
 			if (data?.version !== this.STATE_VERSION || !data.files) return null;
-			return { files: new Map(Object.entries(data.files)), commit: data.commit || null };
+			return { files: new Map(Object.entries(data.files)) };
 		}
 		catch (e) { ZoteroGitHubSync.logError(e); return null; }
 	},
 
-	async saveState(config, files, commit = null) {
+	async saveState(config, files) {
 		let path = this.statePath(config);
 		let ordered = {};
 		for (let key of [...files.keys()].sort()) ordered[key] = files.get(key);
 		await IOUtils.makeDirectory(PathUtils.parent(path), { ignoreExisting: true });
-		await IOUtils.writeJSON(path, { version: this.STATE_VERSION, commit, files: ordered }, { tmpPath: `${path}.tmp` });
+		await IOUtils.writeJSON(path, { version: this.STATE_VERSION, files: ordered }, { tmpPath: `${path}.tmp` });
+	},
+
+	async removeMirrorPaths(config, paths) {
+		let removed = [];
+		for (let path of paths) {
+			let absolute = this.resolve(config, `${config.basePath}/${path}`);
+			if (await IOUtils.exists(absolute)) {
+				await IOUtils.remove(absolute, { recursive: false });
+				removed.push(`${config.basePath}/${path}`);
+			}
+		}
+		return removed;
+	},
+
+	async applyDeletedMirrorItems(paths) {
+		let applied = [];
+		let unresolved = [];
+		for (let path of paths) {
+			let info = ZoteroGitHubSync.Planner.importable(path);
+			if (info?.kind !== 'item') {
+				unresolved.push(path);
+				continue;
+			}
+			let libraryID = ZoteroGitHubSync.Importer._resolveLibraryID(info.library);
+			let item = libraryID !== null ? Zotero.Items.getByLibraryAndKey(libraryID, info.key) : null;
+			if (item && !item.deleted) {
+				item.deleted = true;
+				await item.saveTx();
+			}
+			applied.push(path);
+		}
+		return { applied, unresolved };
 	},
 
 	validateBindings(value) {
@@ -284,18 +316,18 @@ ZoteroGitHubSync.Workspace = {
 		}
 	},
 
-	async syncNow({ trigger = 'manual', silent = false } = {}) {
+	async syncNow({ trigger = 'manual', silent = false, remote = true } = {}) {
 		let config = ZoteroGitHubSync.Prefs.getConfig();
 		if (!config.workspacePath) return { status: 'not-configured', added: 0, updated: 0, deleted: 0, warnings: [] };
 		if (!config.basePath) throw new Error('Local Workspace requires a non-empty Zotero mirror folder (normally "zotero").');
-		if (!config.managedPaths.length) throw new Error('Configure at least one managed workspace path.');
+		if (remote && !config.managedPaths.length) throw new Error('Configure at least one managed workspace path.');
 		let warnings = [];
 		let pending = 0;
 		let git = null;
 		let api = null;
 		let apiReady = false;
 		let gitState = { status: 'not-run' };
-		if (config.workspaceTransport === 'github-api') {
+		if (remote && config.workspaceTransport === 'github-api') {
 			let token = await ZoteroGitHubSync.Prefs.getToken();
 			if (!config.owner || !config.repo || !config.branch || !token) {
 				throw new Error('Configure the GitHub owner, repository, branch, and token for API transport.');
@@ -314,7 +346,7 @@ ZoteroGitHubSync.Workspace = {
 				warnings.push(`GitHub API transport is unavailable; local workspace edits are preserved: ${e.message || e}`);
 			}
 		}
-		else {
+		else if (remote) {
 			git = new ZoteroGitHubSync.LocalGit(config);
 			await git.validate();
 			gitState = await git.fetchAndFastForward();
@@ -339,6 +371,8 @@ ZoteroGitHubSync.Workspace = {
 			imported = await this.importPaths(config, before.tree, all, {
 				onProgress: message => ZoteroGitHubSync.Sync._updateProgress({ phase: 'importing', message }),
 			});
+			warnings.push(...(imported.failures || []));
+			pending += (imported.failures || []).length;
 		}
 
 		let firstExport = await this.buildExport(config, message => ZoteroGitHubSync.Sync._updateProgress({ phase: 'collecting', message }));
@@ -350,15 +384,29 @@ ZoteroGitHubSync.Workspace = {
 			base: state?.files || null,
 			prune: true,
 		});
+		if (state) {
+			// In the always-on local layer, deletion wins even if the surviving
+			// mirror copy changed later. Move those cases out of "incoming" and
+			// into the deletion path before importing anything.
+			let deletedLocally = plan.incoming.filter(path => state.files.has(path) && !localHashes.has(path));
+			plan.incoming = plan.incoming.filter(path => !deletedLocally.includes(path));
+			plan.delete.push(...deletedLocally);
+			plan.delete.sort();
+		}
 		if (state && plan.incoming.length) {
 			let incoming = await this.importPaths(config, before.tree, plan.incoming, {
 				force: true,
 				onProgress: message => ZoteroGitHubSync.Sync._updateProgress({ phase: 'importing', message }),
 			});
 			for (let key of ['created', 'updated', 'skipped', 'files']) imported[key] += incoming[key] || 0;
-			warnings.push(...(incoming.failures || []));
+			let incomingFailures = incoming.failures || [];
+			imported.failures.push(...incomingFailures);
+			warnings.push(...incomingFailures);
+			pending += incomingFailures.length;
 		}
-		let unresolved = [...plan.conflicts, ...plan.diverged, ...plan.restore, ...plan.delete];
+		let mirrorDeletes = state ? await this.applyDeletedMirrorItems(plan.restore) : { applied: [], unresolved: [] };
+		let removedMirror = state ? await this.removeMirrorPaths(config, plan.delete) : [];
+		let unresolved = [...plan.conflicts, ...plan.diverged, ...plan.overwrite];
 		if (unresolved.length) {
 			pending += unresolved.length;
 			warnings.push(`Zotero mirror needs review: ${unresolved.slice(0, 8).join(', ')}${unresolved.length > 8 ? '…' : ''}`);
@@ -379,20 +427,29 @@ ZoteroGitHubSync.Workspace = {
 		await this.preservePendingNoteJSON(config, finalExport.files, bindings, noteResult.results);
 		let finalHashes = await this.hashExport(finalExport.files);
 		let keptPaths = this.applyKeepPrefixes(finalHashes, before.hashes, finalExport.keepPrefixes || []);
+		if (state) {
+			// Better Notes coordination can trash a child note after the first
+			// export (for example when its Markdown was deleted). Remove the now
+			// stale mirror JSON in this same transaction so it cannot be imported
+			// back on the next run.
+			let lateDeletes = [...before.hashes.keys()]
+				.filter(path => state.files.has(path) && !finalHashes.has(path));
+			removedMirror.push(...await this.removeMirrorPaths(config, lateDeletes));
+		}
 		let changed = await this.writeExport(config, finalExport.files, keptPaths);
 		let transportResult = { status: 'not-run' };
 		let remoteUnsafe = config.workspaceTransport === 'system-git'
 			&& ['blocked', 'diverged', 'remote-pending'].includes(gitState.status);
-		if (apiReady) {
+		if (remote && apiReady) {
 			ZoteroGitHubSync.Sync._updateProgress({ phase: 'committing', message: 'Publishing managed paths through the GitHub API…' });
 			transportResult = await api.finish(trigger);
 			pending += transportResult.pending || 0;
 			warnings.push(...(transportResult.warnings || []));
 		}
-		else if (config.workspaceTransport === 'github-api') {
+		else if (remote && config.workspaceTransport === 'github-api') {
 			transportResult = { status: 'remote-unavailable', commit: null };
 		}
-		else if (config.autoCommit && !remoteUnsafe) {
+		else if (remote && config.autoCommit && !remoteUnsafe) {
 			ZoteroGitHubSync.Sync._updateProgress({ phase: 'committing', message: 'Committing managed workspace paths…' });
 			let message = (config.commitMessage || 'Research workspace sync: {changes} ({date})')
 				.replace(/\{changes\}/g, `${changed.length} file(s)`)
@@ -407,13 +464,27 @@ ZoteroGitHubSync.Workspace = {
 				warnings.push(transportResult.reason || transportResult.status);
 			}
 		}
-		else if (!config.autoCommit && changed.length) {
+		else if (remote && !config.autoCommit && changed.length) {
 			warnings.push('Workspace files are ready but automatic commit is disabled.');
 		}
 
-		if (!unresolved.length && !noteResult.pending) await this.saveState(config, finalHashes, transportResult.commit || null);
-		let status = pending ? 'pending' : (transportResult.status === 'pushed' ? 'pushed' : changed.length ? 'local-complete' : 'up-to-date');
+		let localPending = unresolved.length + noteResult.pending + discovered.warnings.length + (imported.failures || []).length;
+		if (!localPending) await this.saveState(config, finalHashes);
+		let coordinatedNote = noteResult.results.some(result => ![
+			'up-to-date', 'bound', 'editing', 'conflict', 'unsupported-markdown', 'image-conflict', 'waiting-identity',
+		].includes(result.status));
+		let localStatus = localPending ? 'pending'
+			: (changed.length || removedMirror.length || mirrorDeletes.applied.length || imported.updated || imported.created || coordinatedNote
+				? 'local-complete' : 'up-to-date');
+		let status = remote
+			? (pending ? 'pending' : (transportResult.status === 'pushed' ? 'pushed' : transportResult.status))
+			: localStatus;
 		ZoteroGitHubSync.Prefs.set('localStatus', JSON.stringify({
+			status: localStatus,
+			pending: localPending,
+			at: new Date().toISOString(),
+		}));
+		if (remote) ZoteroGitHubSync.Prefs.set('cloudStatus', JSON.stringify({
 			status,
 			transport: config.workspaceTransport,
 			remote: transportResult.status,
@@ -421,16 +492,21 @@ ZoteroGitHubSync.Workspace = {
 			at: new Date().toISOString(),
 		}));
 		await ZoteroGitHubSync.Files.saveCache();
+		// Do not make the watcher queue a second run merely because this run wrote
+		// the mirror or a bound Markdown file itself.
+		this._pollFingerprint = await this.fingerprint(config);
 		return {
 			status,
-			added: changed.length,
+			added: changed.length + removedMirror.length,
 			updated: imported.updated + imported.created,
 			deleted: transportResult.deletedRemote || 0,
 			commit: transportResult.commit || null,
 			pending,
+			localPending,
 			warnings,
 			transport: transportResult,
 			notes: noteResult.results,
+			layer: remote ? 'cloud' : 'local',
 		};
 	},
 
@@ -458,21 +534,30 @@ ZoteroGitHubSync.Workspace = {
 	},
 
 	async fingerprint(config) {
-		let root = this.resolve(config, 'content');
 		let parts = [];
-		for (let file of await this.listFiles(root)) parts.push(`${file.path}\0${file.size}\0${file.mtime}`);
+		let roots = new Set([
+			...config.managedPaths,
+			config.basePath,
+			String(config.papersPath || '').split('/')[0],
+			String(config.assetsPath || '').split('/')[0],
+		].filter(Boolean));
+		for (let root of roots) {
+			for (let file of await this.listFiles(this.resolve(config, root))) {
+				parts.push(`${root}/${file.path}\0${file.size}\0${file.mtime}`);
+			}
+		}
 		return Zotero.Utilities.Internal.md5(parts.sort().join('\n'), false);
 	},
 
 	startWatcher() {
 		this.stopWatcher();
 		let config = ZoteroGitHubSync.Prefs.getConfig();
-		if (!config.workspacePath || config.automationPaused || !config.syncOnChange) return;
+		if (!config.workspacePath || !PathUtils.isAbsolute(config.workspacePath)) return;
 		this.fingerprint(config).then(value => { this._pollFingerprint = value; }).catch(() => {});
 		this._pollTimer = setInterval(async () => {
 			try {
 				let current = ZoteroGitHubSync.Prefs.getConfig();
-				if (current.automationPaused || ZoteroGitHubSync.Sync.isRunning) return;
+				if (ZoteroGitHubSync.Sync.isRunning) return;
 				let value = await this.fingerprint(current);
 				if (this._pollFingerprint && value !== this._pollFingerprint) {
 					ZoteroGitHubSync.Sync.scheduleWorkspaceChange();
@@ -480,7 +565,7 @@ ZoteroGitHubSync.Workspace = {
 				this._pollFingerprint = value;
 			}
 			catch (e) { ZoteroGitHubSync.logError(e); }
-		}, 30 * 1000);
+		}, 5 * 1000);
 	},
 
 	stopWatcher() {

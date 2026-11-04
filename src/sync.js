@@ -20,6 +20,8 @@ ZoteroGitHubSync.Sync = {
 	FILE_LIST_PATH: '.zotero-sync/files.json',
 	BLOB_CONCURRENCY: 3,
 	STARTUP_DELAY_MS: 60 * 1000,
+	LOCAL_STARTUP_DELAY_MS: 1000,
+	LOCAL_CHANGE_DELAY_MS: 2 * 1000,
 
 	// Tree requests carrying inline text: stay well inside request size limits
 	TREE_MAX_ENTRIES: 300,
@@ -42,13 +44,15 @@ ZoteroGitHubSync.Sync = {
 	_running: false,
 	_cancel: null,
 	_intervalTimer: null,
-	_changeTimer: null,
+	_localTimer: null,
+	_remoteChangeTimer: null,
 	_startupTimer: null,
 	_notifierID: null,
 	_zoteroSyncNotifierID: null,
 	_suppressChangeTrigger: false,
 	_progressWindow: null,
-	_rerunRequested: false,
+	_localRerunRequested: false,
+	_remoteRerunRequested: false,
 	// Shared by every sync, since GitHub's limit is per account, not per sync
 	_limiter: null,
 
@@ -66,6 +70,10 @@ ZoteroGitHubSync.Sync = {
 			() => this.updateSchedule()
 		);
 		this.updateSchedule();
+		this._localTimer = setTimeout(() => {
+			this._localTimer = null;
+			this.syncLocal({ trigger: 'local-startup' }).catch(e => ZoteroGitHubSync.logError(e));
+		}, this.LOCAL_STARTUP_DELAY_MS);
 
 		// Zotero announces the end of its own sync; follow it with ours if asked
 		this._zoteroSyncNotifierID = Zotero.Notifier.registerObserver(
@@ -74,7 +82,7 @@ ZoteroGitHubSync.Sync = {
 					if (type !== 'sync' || event !== 'finish') {
 						return;
 					}
-					if (!ZoteroGitHubSync.Prefs.getConfig().syncAfterZoteroSync || this._running) {
+					if (!ZoteroGitHubSync.Prefs.getConfig().syncAfterZoteroSync) {
 						return;
 					}
 					this.syncNow({ trigger: 'zotero-sync', silent: true }).catch(e => ZoteroGitHubSync.logError(e));
@@ -97,7 +105,8 @@ ZoteroGitHubSync.Sync = {
 		ZoteroGitHubSync.Review?.close();
 		this.cancel();
 		this._clearTimer('_intervalTimer', true);
-		this._clearTimer('_changeTimer');
+		this._clearTimer('_localTimer');
+		this._clearTimer('_remoteChangeTimer');
 		this._clearTimer('_startupTimer');
 		for (let name of ['_notifierID', '_zoteroSyncNotifierID']) {
 			if (this[name]) {
@@ -129,7 +138,7 @@ ZoteroGitHubSync.Sync = {
 		ZoteroGitHubSync.Workspace?.startWatcher();
 
 		this._clearTimer('_intervalTimer', true);
-		if (config.intervalEnabled) {
+		if (config.intervalEnabled && !config.automationPaused) {
 			let ms = config.intervalMinutes * 60 * 1000;
 			this._intervalTimer = setInterval(() => {
 				this.syncNow({ trigger: 'interval', silent: true }).catch(e => ZoteroGitHubSync.logError(e));
@@ -137,19 +146,18 @@ ZoteroGitHubSync.Sync = {
 			ZoteroGitHubSync.log(`Periodic sync every ${config.intervalMinutes} minute(s)`);
 		}
 
-		if (config.syncOnChange && !this._notifierID) {
+		// Zotero notifications always drive the local coordination layer. The
+		// syncOnChange preference only decides whether the same event also queues
+		// a GitHub run.
+		if (!this._notifierID) {
 			this._notifierID = Zotero.Notifier.registerObserver(
 				{ notify: (...args) => this._onNotify(...args) },
 				['item', 'collection', 'collection-item', 'item-tag', 'search', 'setting'],
 				'zotero-github-sync'
 			);
-			ZoteroGitHubSync.log('Watching the library for changes');
+			ZoteroGitHubSync.log('Watching the library for local changes');
 		}
-		else if (!config.syncOnChange && this._notifierID) {
-			Zotero.Notifier.unregisterObserver(this._notifierID);
-			this._notifierID = null;
-			this._clearTimer('_changeTimer');
-		}
+		if (!config.syncOnChange) this._clearTimer('_remoteChangeTimer');
 	},
 
 
@@ -157,38 +165,42 @@ ZoteroGitHubSync.Sync = {
 		if (this._suppressChangeTrigger) {
 			return;
 		}
-		if (this._running) {
-			this._rerunRequested = true;
-			return;
-		}
 		if (!['add', 'modify', 'delete', 'trash', 'remove'].includes(event) || !ids?.length) {
 			return;
 		}
-		let config = ZoteroGitHubSync.Prefs.getConfig();
-		if (!config.syncOnChange) {
-			return;
-		}
-		// Editing an item fires a stream of notifications; wait until the user
-		// has been quiet for a while rather than syncing after every keystroke
-		this._clearTimer('_changeTimer');
-		this._changeTimer = setTimeout(() => {
-			this._changeTimer = null;
-			this.syncNow({ trigger: 'change', silent: true }).catch(e => ZoteroGitHubSync.logError(e));
-		}, config.changeDelayMinutes * 60 * 1000);
+		this.scheduleLocalChange('zotero-change');
+		this.scheduleRemoteChange('change');
 	},
 
 
 	scheduleWorkspaceChange() {
-		let config = ZoteroGitHubSync.Prefs.getConfig();
-		if (config.automationPaused || !config.syncOnChange) return;
+		this.scheduleLocalChange('workspace-change');
+		this.scheduleRemoteChange('workspace-change');
+	},
+
+
+	scheduleLocalChange(trigger = 'local-change') {
 		if (this._running) {
-			this._rerunRequested = true;
+			this._localRerunRequested = true;
 			return;
 		}
-		this._clearTimer('_changeTimer');
-		this._changeTimer = setTimeout(() => {
-			this._changeTimer = null;
-			this.syncNow({ trigger: 'workspace-change', silent: true }).catch(e => ZoteroGitHubSync.logError(e));
+		this._clearTimer('_localTimer');
+		this._localTimer = setTimeout(() => {
+			this._localTimer = null;
+			this.syncLocal({ trigger }).catch(e => ZoteroGitHubSync.logError(e));
+		}, this.LOCAL_CHANGE_DELAY_MS);
+	},
+
+
+	scheduleRemoteChange(trigger = 'change') {
+		let config = ZoteroGitHubSync.Prefs.getConfig();
+		if (config.automationPaused || !config.syncOnChange) return;
+		// Editing fires a stream of notifications; only the cloud run uses the
+		// configured quiet period. Local coordination stays near real time.
+		this._clearTimer('_remoteChangeTimer');
+		this._remoteChangeTimer = setTimeout(() => {
+			this._remoteChangeTimer = null;
+			this.syncNow({ trigger, silent: true }).catch(e => ZoteroGitHubSync.logError(e));
 		}, config.changeDelayMinutes * 60 * 1000);
 	},
 
@@ -316,6 +328,7 @@ ZoteroGitHubSync.Sync = {
 	 */
 	async syncNow({ trigger = 'manual', silent = false } = {}) {
 		if (this._running) {
+			this._remoteRerunRequested = true;
 			if (!silent) {
 				// Already visible on the toolbar button; reopen the window rather
 				// than raising an alert
@@ -328,13 +341,22 @@ ZoteroGitHubSync.Sync = {
 		if (config.automationPaused && silent) {
 			return { status: 'paused' };
 		}
-		// The unified workspace is the only product mode. System Git and the
-		// GitHub API are interchangeable transports inside Workspace.syncNow().
-		return this._syncLocalWorkspace({ trigger, silent });
+		// A cloud run coordinates local state first, then publishes it. System Git
+		// and GitHub API are interchangeable transports for only the second step.
+		return this._runWorkspace({ trigger, silent, remote: true });
 	},
 
 
-	async _syncLocalWorkspace({ trigger, silent }) {
+	async syncLocal({ trigger = 'local-change' } = {}) {
+		if (this._running) {
+			this._localRerunRequested = true;
+			return { status: 'busy' };
+		}
+		return this._runWorkspace({ trigger, silent: true, remote: false });
+	},
+
+
+	async _runWorkspace({ trigger, silent, remote }) {
 		let config = ZoteroGitHubSync.Prefs.getConfig();
 		if (!config.workspacePath) {
 			if (!silent) this._notify('Configure the Local Workspace repository path first.', { error: true });
@@ -344,22 +366,39 @@ ZoteroGitHubSync.Sync = {
 		this._cancel = new ZoteroGitHubSync.CancelToken();
 		this.progress = null;
 		this._setStatus('syncing');
-		this._updateProgress({ phase: 'collecting', message: 'Preparing Local Workspace…' });
+		this._updateProgress({ phase: 'collecting', message: remote ? 'Preparing GitHub sync…' : 'Coordinating local workspace…' });
 		if (!silent) this._openProgressWindow();
 		try {
-			let result = await ZoteroGitHubSync.Workspace.syncNow({ trigger, silent });
-			ZoteroGitHubSync.Prefs.set('lastSync', ZoteroGitHubSync.Utils.isoDate());
-			ZoteroGitHubSync.Prefs.set('lastError', '');
-			ZoteroGitHubSync.Prefs.set('lastWarnings', this._formatWarnings(result.warnings));
-			if (result.commit) ZoteroGitHubSync.Prefs.set('lastCommit', result.commit);
+			let result = await ZoteroGitHubSync.Workspace.syncNow({ trigger, silent, remote });
+			let now = ZoteroGitHubSync.Utils.isoDate();
+			if (remote) {
+				ZoteroGitHubSync.Prefs.set('lastSync', now);
+				ZoteroGitHubSync.Prefs.set('lastError', '');
+				ZoteroGitHubSync.Prefs.set('lastWarnings', this._formatWarnings(result.warnings));
+				if (result.commit) ZoteroGitHubSync.Prefs.set('lastCommit', result.commit);
+			}
+			else {
+				ZoteroGitHubSync.Prefs.set('lastLocalSync', now);
+				ZoteroGitHubSync.Prefs.set('localLastError', '');
+				ZoteroGitHubSync.Prefs.set('localLastWarnings', this._formatWarnings(result.warnings));
+			}
 			this.lastResult = result;
-			this.pendingReview = result.pending || 0;
+			if (remote) {
+				ZoteroGitHubSync.Prefs.set('localPendingReview', result.localPending || 0);
+				ZoteroGitHubSync.Prefs.set('cloudPendingReview', Math.max(0, (result.pending || 0) - (result.localPending || 0)));
+			}
+			else {
+				ZoteroGitHubSync.Prefs.set('localPendingReview', result.pending || 0);
+			}
+			this.pendingReview = (Number(ZoteroGitHubSync.Prefs.get('localPendingReview')) || 0)
+				+ (Number(ZoteroGitHubSync.Prefs.get('cloudPendingReview')) || 0);
 			ZoteroGitHubSync.Prefs.set('pendingReview', this.pendingReview);
 			this.progress = null;
 			this._setStatus(this.pendingReview ? 'attention' : 'idle');
+			let layer = remote ? 'GitHub sync' : 'Local coordination';
 			let summary = result.status === 'up-to-date'
-				? 'Local Workspace is already up to date.'
-				: `Local Workspace: ${result.status}; ${result.added || 0} file(s) written.`;
+				? `${layer} is already up to date.`
+				: `${layer}: ${result.status}; ${result.added || 0} file(s) changed.`;
 			if (result.pending) summary += `\n${result.pending} change(s) need attention.`;
 			this._finishProgressWindow(summary);
 			return result;
@@ -368,11 +407,11 @@ ZoteroGitHubSync.Sync = {
 			this.progress = null;
 			if (e instanceof ZoteroGitHubSync.CancelledError) {
 				this._setStatus('idle');
-				this._finishProgressWindow('Local Workspace sync cancelled. Saved files were kept.');
+				this._finishProgressWindow(`${remote ? 'GitHub sync' : 'Local coordination'} cancelled. Saved files were kept.`);
 				return { status: 'cancelled' };
 			}
 			ZoteroGitHubSync.logError(e);
-			ZoteroGitHubSync.Prefs.set('lastError', e.message || String(e));
+			ZoteroGitHubSync.Prefs.set(remote ? 'lastError' : 'localLastError', e.message || String(e));
 			this._setStatus('error');
 			this._progressWindow?.close();
 			this._progressWindow = null;
@@ -382,9 +421,14 @@ ZoteroGitHubSync.Sync = {
 		finally {
 			this._running = false;
 			this._cancel = null;
-			if (this._rerunRequested) {
-				this._rerunRequested = false;
-				setTimeout(() => this.syncNow({ trigger: 'queued-change', silent: true })
+			if (this._localRerunRequested) {
+				this._localRerunRequested = false;
+				setTimeout(() => this.syncLocal({ trigger: 'queued-local-change' })
+					.catch(e => ZoteroGitHubSync.logError(e)), 1000);
+			}
+			else if (this._remoteRerunRequested) {
+				this._remoteRerunRequested = false;
+				setTimeout(() => this.syncNow({ trigger: 'queued-cloud-change', silent: true })
 					.catch(e => ZoteroGitHubSync.logError(e)), 1000);
 			}
 		}

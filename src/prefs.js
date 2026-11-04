@@ -130,10 +130,9 @@ ZoteroGitHubSync.Prefs = {
 
 			intervalEnabled: !!this.get('intervalEnabled'),
 			intervalMinutes: Math.max(5, Number(this.get('intervalMinutes')) || 60),
-			// Local Workspace is event-driven by design. Pause automation is the
-			// single intentional off switch; a legacy false preference must not
-			// silently disable all local synchronization.
-			syncOnChange: true,
+			// This controls GitHub transport only. Local Zotero/workspace
+			// coordination is always enabled while Zotero is running.
+			syncOnChange: !!this.get('syncOnChange'),
 			changeDelayMinutes: Math.max(1, Number(this.get('changeDelayMinutes')) || 5),
 			syncOnStartup: !!this.get('syncOnStartup'),
 			syncAfterZoteroSync: !!this.get('syncAfterZoteroSync'),

@@ -2,12 +2,12 @@
 
 ## 兼容性与安装
 
-本扩展名为 **Zotero Quartz Workspace Sync 1.1.0**，沿用上游插件 ID，因此安装后会替换原版 Zotero GitHub Sync，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
+本扩展名为 **Zotero Quartz Workspace Sync 1.2.0**，沿用上游插件 ID，因此安装后会替换原版 Zotero GitHub Sync，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
 
 - 插件只保留统一 Workspace 功能；远端传输可选择 System Git 或 GitHub API，两者同步相同的管理路径。
 - Workspace + Better Notes：按 Better Notes 3.3.3 的实际 API 开发；该版本要求 Zotero 8.0-beta.21–10.99.99。
 - 首版运行边界：Windows、macOS 桌面版；只有 Zotero 正在运行时才监听和自动同步。
-- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `build/zotero-github-sync-1.1.0.xpi`。
+- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `build/zotero-github-sync-1.2.0.xpi`。
 
 本次核查基线：
 
@@ -27,7 +27,7 @@
 5. 阅读笔记填 `content/papers`，图片填 `content/assets`。
 6. Obsidian Vault path 选择实际 Vault。当前常用结构应选择 `research/content`，Vault 名可以留空自动取目录名。
 7. 可选择 `content/templates/` 下的 Markdown 作为新阅读笔记模板。
-8. 点击“Validate workspace”和“Test open”，再手动执行一次“Sync now”。
+8. 点击“Validate workspace”和“Test open”。本地协调会自动开始；需要立即测试 GitHub 时再点击“Sync now”。
 
 仓库当前已有 `content/.obsidian`、`content/assets`、`content/papers`，与默认配置一致。检查时发现研究仓库已有未提交的论文笔记修改；开发和测试没有改写这些文件。
 
@@ -55,9 +55,12 @@
 
 ## 日常自动同步
 
-默认在 Zotero 启动后检查；Zotero 数据变化或 `content/` 文件变化后等待约 2 分钟。变更监听始终启用，不需要手动 Sync now；唯一的关闭方式是 **Pause automation**。可选的定时检查用于补充远端轮询。所有入口调用同一协调流程。`content/` 监听是 Zotero 运行期间每 30 秒轻量扫描一次保存后的大小/mtime，再进入防抖队列。
+同步分为两层：
 
-流程顺序：远端三方协调 → 导入 JSON → 恢复绑定 → 协调 Better Notes 与图片 → 重新稳定导出 JSON → 提交管理路径。System Git 执行安全 fetch/快进、限定路径 commit 和普通 push；GitHub API 读取远端 tree、原子下载单边变化，再用非强制 branch ref 更新提交。同步期间发生的新事件会排入下一轮。纳入本项目绑定的笔记由本插件统一调度，并从 Better Notes 自己基于本机数字 ID 的周期同步列表中移除，以避免两个后台任务同时改写同一文件；Markdown/HTML 转换仍完全调用 Better Notes。
+- **本地协调**始终启用，不受 GitHub 设置和“Pause GitHub automation”影响。Zotero 数据变化约 2 秒后处理；工作区管理路径中保存后的文件变化每 5 秒检测一次。它负责 Zotero 数据库 ↔ `zotero/` 镜像，以及 Zotero 子笔记 ↔ Obsidian Markdown/图片，不需要点击“Sync now”。
+- **GitHub 云端同步**才受“启动时、定时、变更后、Zotero Sync 后”和暂停开关控制。“Sync now”表示立即执行一次 GitHub 同步；它会先完成本地协调，再通过所选 System Git 或 GitHub API 传输管理路径。
+
+云端流程顺序：远端三方协调 → 本地 JSON/绑定/Better Notes 协调 → 重新稳定导出 JSON → 提交管理路径。System Git 执行安全 fetch/快进、限定路径 commit 和普通 push；GitHub API 读取远端 tree、原子下载单边变化，再用非强制 branch ref 更新提交。同步期间发生的新事件会排入下一轮。纳入本项目绑定的笔记由本插件统一调度，并从 Better Notes 自己基于本机数字 ID 的周期同步列表中移除，以避免两个后台任务同时改写同一文件；Markdown/HTML 转换仍完全调用 Better Notes。
 
 可在 Zotero 文献、PDF 附件或原生笔记上右键选择 **Open Reading Note in Obsidian**，或按 `Ctrl+Alt+O`（macOS 为 `Cmd+Option+O`）：
 
@@ -123,9 +126,9 @@ zotero-key: "{{itemKey}}"
 
 当前 research `.gitignore` 包含 `*.pdf`。若以后开启 PDF 同步，还需要显式调整该规则，否则 Git 会忽略新 PDF；默认关闭 PDF 不受影响。
 
-删除父文献不会顺带删除研究 Markdown；删除镜像文件也不会清空 `zotero/`，实现只处理插件明确管理的路径。已绑定阅读笔记采用下述单独规则。
+删除父文献不会顺带删除研究 Markdown。删除 `zotero/` 中某个受管父条目 JSON 会把对应 Zotero 条目移入回收站；删除其他派生镜像文件会在下次协调时重新生成，不会据此猜测或批量清空文库。已绑定阅读笔记采用下述单独规则。
 
-删除一个已绑定的 Zotero 阅读笔记或其 Markdown 后，采用自动“删除优先”策略：删除会传播到另一端并移除绑定，无需确认；即使另一端在上次同步后又有修改，删除仍然获胜。Zotero 端进入回收站，Git/Markdown 删除可从版本历史恢复。若误删后希望保留内容，应在约 2 分钟防抖同步执行前撤销删除或暂停自动化。
+删除一个已绑定的 Zotero 阅读笔记或其 Markdown 后，采用自动“删除优先”策略：删除会传播到另一端并移除绑定，无需确认；即使另一端在上次协调后又有修改，删除仍然获胜。Zotero 端进入回收站；已经进入 Git 历史的 Markdown 可从历史恢复。删除父文献时只移除 Zotero 镜像和绑定，研究 Markdown 保留为普通 Vault 文档。GitHub 暂停开关不会暂停这些本地删除规则。
 
 ## 冲突、离线和远端状态
 
@@ -139,7 +142,7 @@ zotero-key: "{{itemKey}}"
 - GitHub API 暂时不可用时仍完成本地 Zotero/Better Notes 协调并保留文件，远端阶段标记为 pending；恢复网络后再次同步。
 - GitHub API 的普通 blob 单文件上限设为 95 MB；使用 Git LFS 的仓库请选择 System Git。
 
-解决冲突后再次“Sync now”。需要停止自动化时点击设置中的“Pause automation”；手动同步仍可运行。恢复后点击“Resume automation”。
+本地冲突解决并保存后会自动再次协调；若要立即与 GitHub 交换结果，再点击“Sync now”。“Pause GitHub automation”只停止自动云端传输，手动 GitHub 同步和本地协调仍可运行。
 
 ## Markdown 兼容边界
 

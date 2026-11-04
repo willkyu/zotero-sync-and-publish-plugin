@@ -1,6 +1,6 @@
 # Zotero Quartz Workspace Sync
 
-Coordinate Zotero, Better Notes, Obsidian and Quartz in one local workspace. The plugin always runs the same workspace pipeline and lets you choose how that workspace reaches the remote repository:
+Coordinate Zotero, Better Notes, Obsidian and Quartz in one local workspace. Local coordination is always active while Zotero is running; GitHub synchronization is a separate, configurable layer. Choose how the workspace reaches GitHub:
 
 - **System Git** — uses a checked-out repository, the installed `git` executable and the user's existing Git credentials.
 - **GitHub API** — synchronizes the complete configured workspace paths through GitHub's Git Database API; no `git.exe` or `.git` directory is required.
@@ -33,6 +33,7 @@ Zotero's live SQLite database remains in the Zotero profile and is never placed 
 - GitHub API updates the branch ref without force and stops if another computer moved the branch.
 - Remote deletion removes a local workspace file only when the local hash still equals the last shared base.
 - Managed paths are explicit; API transport does not touch repository files outside them.
+- Deleting a bound Zotero child note or its Markdown deletes the other copy automatically. Deleting the parent paper removes its Zotero mirror but retains the research Markdown.
 
 ## Install
 
@@ -65,17 +66,17 @@ If a GUI-launched Zotero does not inherit the terminal `PATH`, the plugin checks
 
 API transport uses ordinary Git blobs and skips individual files over 95 MB. Choose System Git when the repository uses Git LFS.
 
-## Synchronization order
+## Local coordination and GitHub sync
 
-Each manual or automatic entry point performs one complete workspace transaction:
+While Zotero is running, local changes are coordinated automatically without **Sync now**, Git, a GitHub token, or network access:
 
-1. Reconcile remote managed files with the local workspace.
-2. Import safe incoming Zotero JSON and restore stable item/note identities.
-3. Coordinate bound native notes, Markdown and note images through Better Notes.
-4. Re-export deterministic Zotero JSON.
-5. Publish managed workspace paths through the selected transport.
+1. Coordinate Zotero's live database with the `zotero/` mirror.
+2. Coordinate bound native notes, Obsidian Markdown and note images through Better Notes.
+3. Re-export deterministic Zotero JSON and update the local baseline.
 
-The workspace is checked after Zotero starts, on a configurable interval, and after debounced Zotero or `content/` changes. Automation can be paused without disabling manual sync.
+The plugin reacts to Zotero notifications after a short debounce and polls saved managed-path changes every five seconds. Deletions use an automatic delete-wins policy and do not ask for confirmation.
+
+The settings named startup, interval, after-change, after-Zotero-sync and pause apply only to GitHub. A GitHub run first performs the local coordination above, then reconciles and publishes managed paths through System Git or the GitHub API. **Sync now** starts this cloud transaction. Pausing GitHub automation never pauses local coordination.
 
 ## Build and test
 
