@@ -1,6 +1,6 @@
 {
 	"name": "zotero-github-sync",
-	"version": "1.2.1",
+	"version": "1.2.2",
 	"private": true,
 	"description": "Coordinate a Zotero, Better Notes, Obsidian and Quartz workspace through system Git or the GitHub API",
 	"type": "module",

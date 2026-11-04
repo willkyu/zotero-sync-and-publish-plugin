@@ -866,6 +866,9 @@ ZoteroGitHubSync.Exporter = {
 			}
 			return input;
 		};
-		return JSON.stringify(sort(value), null, '\t');
+		// Two spaces are deterministic and also match Prettier's JSON output.
+		// Quartz repositories commonly run `prettier . --check` in Actions, so
+		// generated mirror files must pass without a formatting-only commit.
+		return JSON.stringify(sort(value), null, 2);
 	},
 };

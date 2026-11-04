@@ -14,6 +14,7 @@ Updated: 2026-11-04
 - Always-on local Zotero/workspace coordination, separate GitHub startup/interval/change/manual triggers, and queued events during a running operation.
 - System Git fetch/fast-forward/add/commit/push with staged/index/operation safeguards and no force push.
 - Whole-workspace GitHub API tree synchronization with a machine-local three-way base, atomic downloads, safe deletion rules, conflict preservation and non-force ref updates.
+- Optional read-only Git-index ancestry inference for missing API path baselines, plus Prettier-compatible deterministic mirror JSON.
 - Fork update identity/version strategy, Chinese manual and architecture record.
 
 ## Actually tested in this environment

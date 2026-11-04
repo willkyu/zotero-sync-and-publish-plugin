@@ -138,7 +138,8 @@ zotero-key: "{{itemKey}}"
 - fetch 失败：继续保存本地内容，可以提交；push 失败保留本地 commit，稍后重试。
 - 远端领先且工作树有修改，或双方分叉：不 stash、不 reset、不强推，等待人工处理。
 - Git push 成功只表示源仓库收到提交，不代表 Quartz Actions 已部署成功。
-- GitHub API 使用每台机器独立的工作区基线：远端单边修改会下载，远端单边删除只删除未在本机修改的文件；两端都改时保留双方并报告 pending。提交前分支若被其他电脑推进，本轮不会强推。
+- GitHub API 使用每台机器独立的工作区基线：远端单边修改会下载，远端单边删除只删除未在本机修改的文件；两端都改时保留双方并报告 pending。若某个文件尚无 API 基线、但工作区恰好也是同一仓库的 Git checkout，插件会只读 Git index 来确认本地修改所基于的版本；这只是可选的祖先信息，API 模式仍不要求安装 Git。提交前分支若被其他电脑推进，本轮不会强推。
+- `zotero/` 下插件生成的 JSON 使用稳定键顺序、2 空格缩进和末尾换行，可直接通过 Quartz 的 `prettier . --check`。
 - GitHub API 暂时不可用时仍完成本地 Zotero/Better Notes 协调并保留文件，远端阶段标记为 pending；恢复网络后再次同步。
 - GitHub API 的普通 blob 单文件上限设为 95 MB；使用 Git LFS 的仓库请选择 System Git。
 

@@ -82,6 +82,16 @@ ZoteroGitHubSync.WorkspaceAPITransport = class WorkspaceAPITransport {
 		return next;
 	}
 
+	static parseGitIndex(text) {
+		let entries = new Map();
+		for (let record of String(text || '').split('\0')) {
+			if (!record) continue;
+			let match = record.match(/^\d+ ([0-9a-f]{40,64}) ([0-3])\t([\s\S]+)$/i);
+			if (match && match[2] === '0') entries.set(match[3].replace(/\\/g, '/'), match[1]);
+		}
+		return entries;
+	}
+
 	isManaged(path) {
 		return this.config.managedPaths.some(root => path === root || path.startsWith(`${root}/`));
 	}
@@ -132,6 +142,48 @@ ZoteroGitHubSync.WorkspaceAPITransport = class WorkspaceAPITransport {
 		}, { tmpPath: `${path}.tmp` });
 	}
 
+	/**
+	 * An API workspace may also be an existing Git checkout. When this plugin
+	 * has no baseline for a path, the read-only Git index can prove which blob
+	 * the local edit started from. This is optional: API transport continues to
+	 * work without Git and remains conservative when no ancestry is available.
+	 */
+	async inferGitIndexBase(local) {
+		let candidates = [...new Set([...local.keys(), ...this.remote.keys()])].filter(path =>
+			!this.sessionBase.has(path)
+			&& local.has(path)
+			&& this.remote.has(path)
+			&& local.get(path) !== this.remote.get(path)
+		);
+		if (!candidates.length) return 0;
+		try {
+			let git = new ZoteroGitHubSync.LocalGit(this.config);
+			let remoteName = this.config.gitRemote || 'origin';
+			let configured = await git.run(['config', '--get', `remote.${remoteName}.url`], { allowFailure: true });
+			if (configured.code) return 0;
+			let url = configured.stdout.trim().replace(/\\/g, '/').replace(/\.git\/?$/i, '').toLowerCase();
+			let expected = `${this.config.owner}/${this.config.repo}`.toLowerCase();
+			if (!url.endsWith(`/${expected}`) && !url.endsWith(`:${expected}`)) return 0;
+
+			let result = await git.run(['ls-files', '-s', '-z', '--', ...this.config.managedPaths], { allowFailure: true });
+			if (result.code) return 0;
+			let index = WorkspaceAPITransport.parseGitIndex(result.stdout);
+			let inferred = 0;
+			for (let path of candidates) {
+				let sha = index.get(path);
+				if (!sha) continue;
+				this.sessionBase.set(path, sha);
+				inferred++;
+			}
+			if (inferred) ZoteroGitHubSync.log(`Inferred ${inferred} API baseline path(s) from the read-only Git index`);
+			return inferred;
+		}
+		catch (e) {
+			ZoteroGitHubSync.log(`Git index baseline unavailable; using conservative API conflict rules: ${e.message || e}`);
+			return 0;
+		}
+	}
+
 	async connect() {
 		let repo = await ZoteroGitHubSync.Sync._ensureRepo(this.client, this.config);
 		if (repo?.permissions && repo.permissions.push === false) {
@@ -152,7 +204,8 @@ ZoteroGitHubSync.WorkspaceAPITransport = class WorkspaceAPITransport {
 		this.base = state?.files || null;
 		this.sessionBase = new Map(this.base || []);
 		let localScan = await ZoteroGitHubSync.Workspace.scanManaged(this.config);
-		let plan = WorkspaceAPITransport.plan({ local: localScan.hashes, remote: this.remote, base: this.base });
+		await this.inferGitIndexBase(localScan.hashes);
+		let plan = WorkspaceAPITransport.plan({ local: localScan.hashes, remote: this.remote, base: this.sessionBase });
 		this.conflicts = new Set(plan.conflicts);
 
 		let cancel = ZoteroGitHubSync.Sync._cancel;

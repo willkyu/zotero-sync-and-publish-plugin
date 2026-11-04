@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] — 2026-11-04
+
+### Fixed
+
+- GitHub API transport can infer a missing per-file baseline from a matching checkout's read-only Git index. This recognizes a local edit made from the checked-out remote version without making Git a requirement for API transport.
+- Generated Zotero mirror JSON now uses Prettier-compatible two-space indentation, so Quartz `prettier . --check` workflows accept plugin commits.
+
 ## [1.2.1] — 2026-11-04
 
 ### Fixed

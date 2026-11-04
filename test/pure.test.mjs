@@ -9,6 +9,30 @@ globalThis.ZoteroGitHubSync = { log(){}, warn(){}, logError: console.error, vers
 for (const f of ['utils.js', 'prefs.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'workspace-api.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
 const U = ZoteroGitHubSync.Utils, E = ZoteroGitHubSync.Exporter, I = ZoteroGitHubSync.Importer;
 const G = ZoteroGitHubSync.LocalGit, API = ZoteroGitHubSync.WorkspaceAPITransport, BN = ZoteroGitHubSync.BetterNotes, W = ZoteroGitHubSync.Workspace;
+assert.deepEqual(
+  [...API.parseGitIndex('100644 c1ae6de52f690855b90cb421456e9eaa6db7698d 0\tcontent/templates/paper.md\0' +
+    '100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 2\tcontent/conflict.md\0')],
+  [['content/templates/paper.md', 'c1ae6de52f690855b90cb421456e9eaa6db7698d']],
+  'only stage-zero Git index entries provide an API ancestry baseline',
+);
+{
+  const OriginalGit = ZoteroGitHubSync.LocalGit;
+  ZoteroGitHubSync.LocalGit = class {
+    async run(args) {
+      if (args[0] === 'config') return { code: 0, stdout: 'git@github.com:willkyu/research.git\n' };
+      return { code: 0, stdout: '100644 c1ae6de52f690855b90cb421456e9eaa6db7698d 0\tcontent/templates/paper.md\0' };
+    }
+  };
+  try {
+    const transport = Object.create(API.prototype);
+    transport.config = { owner: 'willkyu', repo: 'research', gitRemote: 'origin', managedPaths: ['content', 'zotero'] };
+    transport.remote = new Map([['content/templates/paper.md', 'c1ae6de52f690855b90cb421456e9eaa6db7698d']]);
+    transport.sessionBase = new Map();
+    assert.equal(await transport.inferGitIndexBase(new Map([['content/templates/paper.md', '5a7eccc56cd7d1422d91a0be8a6654184ec02544']])), 1);
+    assert.equal(transport.sessionBase.get('content/templates/paper.md'), 'c1ae6de52f690855b90cb421456e9eaa6db7698d');
+  }
+  finally { ZoteroGitHubSync.LocalGit = OriginalGit; }
+}
 {
   const prefs = ZoteroGitHubSync.Prefs;
   const originalGet = prefs.get;
@@ -96,7 +120,7 @@ assert.equal(U.letterShard('2024 report'), '0-9');
 assert.equal(U.letterShard('深度学习'), 'other');
 // stableStringify with cross-realm objects
 const foreign = vm.runInNewContext('({ b: 1, a: { d: [ { z: 1, y: 2 } ], c: 3 } })');
-assert.equal(E.stableStringify(foreign), JSON.stringify({ a: { c: 3, d: [ { y: 2, z: 1 } ] }, b: 1 }, null, '\t'));
+assert.equal(E.stableStringify(foreign), JSON.stringify({ a: { c: 3, d: [ { y: 2, z: 1 } ] }, b: 1 }, null, 2));
 // groupByLibrary
 const tree = new Map([
   ['zotero/my-library/items/AB/ABCD1234.json', { sha: 's1' }],
