@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] — 2026-11-04
+
+### Added
+
+- One-click new-computer setup from a local folder, GitHub repository URL and token. It configures paths, detects the default branch, restores managed workspace files and bindings, and opens the Obsidian Vault.
+- First-run cloud bootstrap guard: a new GitHub API workspace cannot export an empty/local Zotero mirror before its initial remote download succeeds.
+- Tag-driven GitHub Release publishing now attaches the XPI, update manifest and SHA-256 checksum file.
+
 ## [1.2.3] — 2026-11-04
 
 ### Fixed

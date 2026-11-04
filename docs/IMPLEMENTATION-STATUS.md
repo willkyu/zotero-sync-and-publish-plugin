@@ -15,6 +15,7 @@ Updated: 2026-11-04
 - System Git fetch/fast-forward/add/commit/push with staged/index/operation safeguards and no force push.
 - Whole-workspace GitHub API tree synchronization with a machine-local three-way base, atomic downloads, safe deletion rules, conflict preservation and non-force ref updates.
 - Optional read-only Git-index ancestry inference for missing API path baselines, plus Prettier-compatible deterministic mirror JSON.
+- One-click GitHub API new-computer setup with repository URL parsing, automatic standard paths/default branch, initial remote-first bootstrap barrier and Obsidian launch.
 - Fork update identity/version strategy, Chinese manual and architecture record.
 
 ## Actually tested in this environment

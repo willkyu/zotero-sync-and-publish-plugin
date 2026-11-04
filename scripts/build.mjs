@@ -156,6 +156,13 @@ function buildZip(entries) {
 async function main() {
 	let manifest = JSON.parse(await readFile(join(ROOT, 'manifest.json'), 'utf8'));
 	let version = manifest.version;
+	let pkg = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'));
+	let updates = JSON.parse(await readFile(join(ROOT, 'update.json'), 'utf8'));
+	let update = updates.addons?.[manifest.applications.zotero.id]?.updates?.[0];
+	if (pkg.version !== version || update?.version !== version
+		|| !String(update?.update_link || '').includes(`/v${version}/zotero-github-sync-${version}.xpi`)) {
+		throw new Error('manifest.json, package.json and update.json release versions/URL must match');
+	}
 
 	let paths = [];
 	for (let entry of INCLUDE) {

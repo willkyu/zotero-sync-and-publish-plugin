@@ -64,6 +64,46 @@ ZoteroGitHubSync.Prefs = {
 	migrate() {},
 
 
+	parseRepositoryURL(value) {
+		let raw = String(value || '').trim();
+		if (!raw) throw new Error('Enter a GitHub repository URL.');
+		let host = 'github.com';
+		let path = '';
+		let ssh = raw.match(/^git@([^:]+):(.+)$/i);
+		if (ssh) {
+			host = ssh[1];
+			path = ssh[2];
+		}
+		else {
+			let url;
+			try { url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`); }
+			catch (e) { throw new Error('Enter a valid GitHub repository URL.'); }
+			host = url.hostname;
+			path = url.pathname.replace(/^\/+/, '');
+		}
+		let parts = path.replace(/\.git\/?$/i, '').split('/').filter(Boolean).map(decodeURIComponent);
+		if (parts.length < 2) throw new Error('Repository URL must include an owner and repository.');
+		let branch = parts[2] === 'tree' && parts.length > 3 ? parts.slice(3).join('/') : '';
+		return {
+			owner: parts[0], repo: parts[1], branch,
+			apiURL: host.toLowerCase() === 'github.com' ? 'https://api.github.com' : `https://${host}/api/v3`,
+		};
+	},
+
+
+	quickSetupValues(workspacePath) {
+		return {
+			workspaceTransport: 'github-api', workspacePath,
+			managedPaths: 'content,zotero', basePath: 'zotero',
+			papersPath: 'content/papers', assetsPath: 'content/assets',
+			obsidianVaultPath: PathUtils.join(workspacePath, 'content'),
+			obsidianVaultName: 'content',
+			noteTemplatePath: PathUtils.join(workspacePath, 'content', 'templates', 'paper.md'),
+			autoCommit: true,
+		};
+	},
+
+
 	// -- Derived configuration ---------------------------------------------
 
 	/**

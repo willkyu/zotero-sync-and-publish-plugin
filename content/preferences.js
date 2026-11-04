@@ -22,6 +22,14 @@ window.ZoteroGitHubSyncPrefs = {
 		this._tokenStatus = document.getElementById('zgs-token-status');
 		this._status = document.getElementById('zgs-status');
 		this._tokenInput = document.getElementById('zgs-token');
+		this._quickWorkspace = document.getElementById('zgs-quick-workspace');
+		this._quickRepo = document.getElementById('zgs-quick-repo');
+		this._quickToken = document.getElementById('zgs-quick-token');
+		this._quickStatus = document.getElementById('zgs-quick-status');
+		let initial = this.plugin.Prefs.getConfig();
+		this._quickWorkspace.value = initial.workspacePath || '';
+		this._quickRepo.value = initial.owner && initial.repo
+			? `https://github.com/${initial.owner}/${initial.repo}` : '';
 
 		this._tokenInput.addEventListener('keydown', (event) => {
 			if (event.key === 'Enter') {
@@ -39,6 +47,86 @@ window.ZoteroGitHubSyncPrefs = {
 		// The status block shows the result of syncs started from anywhere, so
 		// keep it current while the pane is open
 		this._statusTimer = setInterval(() => this.refreshStatus(), 1000);
+	},
+
+
+	async chooseQuickFolder() {
+		try {
+			let { FilePicker } = ChromeUtils.importESModule('chrome://zotero/content/modules/filePicker.mjs');
+			let picker = new FilePicker();
+			picker.init(window, 'Choose or create the local research workspace', picker.modeGetFolder);
+			let result = await picker.show();
+			if (result !== picker.returnOK && result !== picker.returnReplace) return;
+			let path = typeof picker.file === 'string' ? picker.file : picker.file?.path;
+			if (path) this._quickWorkspace.value = path;
+		}
+		catch (e) { Zotero.logError(e); }
+	},
+
+
+	async quickSetup() {
+		let button = document.getElementById('zgs-quick-run');
+		button.disabled = true;
+		this._quickStatus.classList.remove('zgs-error', 'zgs-ok');
+		this._quickStatus.textContent = 'Checking repository and downloading the workspace…';
+		try {
+			if (this.plugin.Sync.isRunning) throw new Error('Wait for the current sync to finish, then run setup again.');
+			if (!this.plugin.BetterNotes.available()) throw new Error('Install Better Notes 3.3.x before setting up this computer.');
+			let workspacePath = this._quickWorkspace.value.trim();
+			if (!workspacePath || !PathUtils.isAbsolute(workspacePath) || !await IOUtils.exists(workspacePath)) {
+				throw new Error('Choose an existing absolute local workspace folder.');
+			}
+			let stat = await IOUtils.stat(workspacePath);
+			if (stat.type !== 'directory') throw new Error('The local workspace must be a directory.');
+			let parsed = this.plugin.Prefs.parseRepositoryURL(this._quickRepo.value);
+			let token = this._quickToken.value.trim() || await this.plugin.Prefs.getToken();
+			if (!token) throw new Error('Enter a GitHub token with Contents: Read and write access.');
+
+			let client = new this.plugin.GitHub({
+				token, apiURL: parsed.apiURL, owner: parsed.owner, repo: parsed.repo,
+			});
+			let repo = await client.getRepo();
+			if (!repo) throw new Error(`${parsed.owner}/${parsed.repo} is not visible to this token.`);
+			if (repo.permissions?.push === false) throw new Error(`The token cannot write to ${repo.full_name}. Grant Contents: Read and write.`);
+			let branch = parsed.branch || repo.default_branch || 'main';
+			let values = {
+				...this.plugin.Prefs.quickSetupValues(workspacePath),
+				apiURL: parsed.apiURL, owner: parsed.owner, repo: parsed.repo,
+				branch, gitBranch: branch, syncOnChange: true, syncOnStartup: true,
+				automationPaused: false,
+			};
+			this.plugin.Sync._setupInProgress = true;
+			for (let [key, value] of Object.entries(values)) this.plugin.Prefs.set(key, value);
+			await this.plugin.Prefs.setToken(token);
+			this._quickToken.value = '';
+			await this.plugin.Workspace.resetSetupState(this.plugin.Prefs.getConfig());
+			this.plugin.Sync.updateSchedule();
+			let result = await this.plugin.Sync.syncNow({ trigger: 'quick-setup', silent: false });
+			if (['error', 'busy', 'not-configured', 'cancelled'].includes(result.status)) {
+				throw new Error(result.error || `Setup stopped with status: ${result.status}`);
+			}
+			this._quickStatus.textContent = result.pending
+				? `Setup completed with ${result.pending} pending change(s). Review the status below before editing.`
+				: `Setup complete. Restored the workspace and configured ${values.obsidianVaultPath} as the Vault.`;
+			this._quickStatus.classList.toggle('zgs-error', !!result.pending);
+			this._quickStatus.classList.toggle('zgs-ok', !result.pending);
+			document.getElementById('zgs-workspace-path').value = workspacePath;
+			document.getElementById('zgs-vault-path').value = values.obsidianVaultPath;
+			document.getElementById('zgs-template-path').value = values.noteTemplatePath;
+			await this.refreshTokenStatus();
+			this.refreshMode();
+			this.refreshStatus();
+			if (!result.pending) this.testObsidian();
+		}
+		catch (e) {
+			Zotero.logError(e);
+			this._quickStatus.textContent = e.message || String(e);
+			this._quickStatus.classList.add('zgs-error');
+		}
+		finally {
+			this.plugin.Sync._setupInProgress = false;
+			button.disabled = false;
+		}
 	},
 
 

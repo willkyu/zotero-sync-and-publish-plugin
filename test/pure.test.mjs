@@ -9,6 +9,15 @@ globalThis.ZoteroGitHubSync = { log(){}, warn(){}, logError: console.error, vers
 for (const f of ['utils.js', 'prefs.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'workspace-api.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
 const U = ZoteroGitHubSync.Utils, E = ZoteroGitHubSync.Exporter, I = ZoteroGitHubSync.Importer;
 const G = ZoteroGitHubSync.LocalGit, API = ZoteroGitHubSync.WorkspaceAPITransport, BN = ZoteroGitHubSync.BetterNotes, W = ZoteroGitHubSync.Workspace;
+assert.deepEqual(ZoteroGitHubSync.Prefs.parseRepositoryURL('https://github.com/willkyu/research.git'), {
+  owner: 'willkyu', repo: 'research', branch: '', apiURL: 'https://api.github.com',
+});
+assert.deepEqual(ZoteroGitHubSync.Prefs.parseRepositoryURL('git@github.example.com:team/notes.git'), {
+  owner: 'team', repo: 'notes', branch: '', apiURL: 'https://github.example.com/api/v3',
+});
+assert.deepEqual(ZoteroGitHubSync.Prefs.parseRepositoryURL('github.com/team/notes/tree/research'), {
+  owner: 'team', repo: 'notes', branch: 'research', apiURL: 'https://api.github.com',
+});
 assert.equal(W.transportChangedCount({ uploaded: 4, deletedRemote: 1 }), 5, 'API result counts uploaded and deleted files');
 assert.equal(W.transportChangedCount({ changed: ['content/a.md', 'zotero/item.json'] }), 2, 'system Git result counts committed paths');
 assert.deepEqual(
@@ -98,6 +107,19 @@ assert.deepEqual(
   assert.equal(sync._remoteChangeTimer, null);
   sync._clearTimer('_localTimer');
   prefs.getConfig = originalConfig;
+}
+{
+  const prefs = ZoteroGitHubSync.Prefs, sync = ZoteroGitHubSync.Sync;
+  const originalConfig = prefs.getConfig, originalReady = W.cloudBootstrapReady;
+  const originalSet = prefs.set;
+  prefs.getConfig = () => ({ workspaceTransport: 'github-api', workspacePath: 'C:/empty' });
+  prefs.set = () => {};
+  W.cloudBootstrapReady = async () => false;
+  try {
+    const result = await sync.syncLocal({ trigger: 'test-first-run' });
+    assert.equal(result.status, 'awaiting-cloud-bootstrap', 'a fresh API workspace cannot export before its first remote download');
+  }
+  finally { prefs.getConfig = originalConfig; prefs.set = originalSet; W.cloudBootstrapReady = originalReady; }
 }
 
 // base64 across block boundaries

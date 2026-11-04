@@ -53,6 +53,7 @@ ZoteroGitHubSync.Sync = {
 	_progressWindow: null,
 	_localRerunRequested: false,
 	_remoteRerunRequested: false,
+	_setupInProgress: false,
 	// Shared by every sync, since GitHub's limit is per account, not per sync
 	_limiter: null,
 
@@ -348,9 +349,18 @@ ZoteroGitHubSync.Sync = {
 
 
 	async syncLocal({ trigger = 'local-change' } = {}) {
+		if (this._setupInProgress) return { status: 'awaiting-cloud-bootstrap', pending: 0, layer: 'local' };
 		if (this._running) {
 			this._localRerunRequested = true;
 			return { status: 'busy' };
+		}
+		let config = ZoteroGitHubSync.Prefs.getConfig();
+		if (!await ZoteroGitHubSync.Workspace.cloudBootstrapReady(config)) {
+			let result = { status: 'awaiting-cloud-bootstrap', pending: 0, layer: 'local' };
+			ZoteroGitHubSync.Prefs.set('localStatus', JSON.stringify({
+				status: result.status, pending: 0, at: new Date().toISOString(),
+			}));
+			return result;
 		}
 		return this._runWorkspace({ trigger, silent: true, remote: false });
 	},

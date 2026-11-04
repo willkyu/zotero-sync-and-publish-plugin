@@ -2,12 +2,24 @@
 
 ## 兼容性与安装
 
-本扩展名为 **Zotero Quartz Workspace Sync 1.2.0**，沿用上游插件 ID，因此安装后会替换原版 Zotero GitHub Sync，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
+本扩展名为 **Zotero Quartz Workspace Sync 1.3.0**，沿用上游插件 ID，因此安装后会替换原版 Zotero GitHub Sync，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
 
 - 插件只保留统一 Workspace 功能；远端传输可选择 System Git 或 GitHub API，两者同步相同的管理路径。
 - Workspace + Better Notes：按 Better Notes 3.3.3 的实际 API 开发；该版本要求 Zotero 8.0-beta.21–10.99.99。
 - 首版运行边界：Windows、macOS 桌面版；只有 Zotero 正在运行时才监听和自动同步。
-- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `build/zotero-github-sync-1.2.0.xpi`。
+- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `zotero-github-sync-1.3.0.xpi`。
+
+## 新电脑一键配置（推荐）
+
+先安装 Zotero、Better Notes 3.3.x、Obsidian 和本插件。在 Zotero 设置的 **GitHub Sync → Set up a new computer** 中只填写：
+
+1. 一个已存在的空目录或已有工作区目录；
+2. GitHub 仓库 URL，例如 `https://github.com/willkyu/research`；
+3. 对该仓库具有 **Contents: Read and write** 权限的 Token。
+
+点击 **Set up and open Obsidian**。插件会自动识别 owner、repository 和默认分支，设置 `content,zotero`、阅读笔记、图片、Vault 与模板路径，先下载远端管理路径，再导入 Zotero 镜像和恢复 Better Notes 绑定，最后建立本机独立基线并打开 `<workspace>/content`。该流程不要求安装 Git、Node.js 或在本机运行 Quartz。
+
+首次云端下载成功前，本地自动协调会显示 `awaiting-cloud-bootstrap`，不会把空文库或本机临时导出写到远端。下载或鉴权失败时可以修正 Token/网络后重新点击 Setup，不需要清理目录。
 
 本次核查基线：
 

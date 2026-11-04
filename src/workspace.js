@@ -132,6 +132,18 @@ ZoteroGitHubSync.Workspace = {
 		return (Number(result?.uploaded) || 0) + (Number(result?.deletedRemote) || 0);
 	},
 
+	async cloudBootstrapReady(config) {
+		if (config.workspaceTransport !== 'github-api' || !config.workspacePath) return true;
+		return IOUtils.exists(ZoteroGitHubSync.WorkspaceAPITransport.statePath(config));
+	},
+
+	async resetSetupState(config) {
+		await IOUtils.remove(this.statePath(config), { ignoreAbsent: true });
+		if (config.workspaceTransport === 'github-api') {
+			await IOUtils.remove(ZoteroGitHubSync.WorkspaceAPITransport.statePath(config), { ignoreAbsent: true });
+		}
+	},
+
 	async loadBindings(config) {
 		let path = this.bindingPath(config);
 		try {
@@ -331,8 +343,10 @@ ZoteroGitHubSync.Workspace = {
 		let git = null;
 		let api = null;
 		let apiReady = false;
+		let apiHadState = true;
 		let gitState = { status: 'not-run' };
 		if (remote && config.workspaceTransport === 'github-api') {
+			apiHadState = await this.cloudBootstrapReady(config);
 			let token = await ZoteroGitHubSync.Prefs.getToken();
 			if (!config.owner || !config.repo || !config.branch || !token) {
 				throw new Error('Configure the GitHub owner, repository, branch, and token for API transport.');
@@ -346,6 +360,9 @@ ZoteroGitHubSync.Workspace = {
 				apiReady = true;
 			}
 			catch (e) {
+				if (!apiHadState) {
+					throw new Error(`Initial GitHub workspace download failed; local export is still paused for safety: ${e.message || e}`);
+				}
 				pending++;
 				gitState = { status: 'remote-unavailable' };
 				warnings.push(`GitHub API transport is unavailable; local workspace edits are preserved: ${e.message || e}`);

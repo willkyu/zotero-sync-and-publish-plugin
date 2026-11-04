@@ -11,6 +11,26 @@ ZoteroGitHubSync.WorkspaceAPITransport = class WorkspaceAPITransport {
 	static VERSION = 1;
 	static GIT_BLOB_LIMIT = 95 * 1024 * 1024;
 
+	static statePath(config) {
+		let key = [
+			config.workspacePath,
+			config.apiURL,
+			config.owner,
+			config.repo,
+			config.branch,
+		].join('\n').toLowerCase();
+		let hash = 0x811c9dc5;
+		for (let i = 0; i < key.length; i++) {
+			hash ^= key.charCodeAt(i);
+			hash = Math.imul(hash, 0x01000193) >>> 0;
+		}
+		return PathUtils.join(
+			Zotero.Profile.dir,
+			'zotero-quartz-workspace',
+			`api-${hash.toString(16).padStart(8, '0')}.json`
+		);
+	}
+
 	constructor(config, token) {
 		this.config = config;
 		this.token = token;
@@ -97,23 +117,7 @@ ZoteroGitHubSync.WorkspaceAPITransport = class WorkspaceAPITransport {
 	}
 
 	statePath() {
-		let key = [
-			this.config.workspacePath,
-			this.config.apiURL,
-			this.config.owner,
-			this.config.repo,
-			this.config.branch,
-		].join('\n').toLowerCase();
-		let hash = 0x811c9dc5;
-		for (let i = 0; i < key.length; i++) {
-			hash ^= key.charCodeAt(i);
-			hash = Math.imul(hash, 0x01000193) >>> 0;
-		}
-		return PathUtils.join(
-			Zotero.Profile.dir,
-			'zotero-quartz-workspace',
-			`api-${hash.toString(16).padStart(8, '0')}.json`
-		);
+		return WorkspaceAPITransport.statePath(this.config);
 	}
 
 	async loadState() {

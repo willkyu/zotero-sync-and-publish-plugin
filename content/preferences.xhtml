@@ -2,6 +2,32 @@
 		onload="ZoteroGitHubSyncPrefs.init()"
 		onunload="ZoteroGitHubSyncPrefs.uninit()">
 	<vbox class="main-section">
+		<groupbox id="zgs-quick-setup">
+			<label><html:h2>Set up a new computer</html:h2></label>
+			<html:div class="zgs-hint">
+				Choose an empty or existing local folder, paste the repository URL and a Contents: Read and write token.
+				The plugin downloads GitHub before any local export, restores Zotero/Better Notes bindings, and configures Obsidian automatically.
+			</html:div>
+			<hbox align="center">
+				<label control="zgs-quick-workspace" value="Local workspace folder"/>
+				<html:input id="zgs-quick-workspace" type="text" flex="1"/>
+				<button label="Choose…" oncommand="ZoteroGitHubSyncPrefs.chooseQuickFolder()"/>
+			</hbox>
+			<hbox align="center">
+				<label control="zgs-quick-repo" value="GitHub repository URL"/>
+				<html:input id="zgs-quick-repo" type="text" flex="1" placeholder="https://github.com/owner/repository"/>
+			</hbox>
+			<hbox align="center">
+				<label control="zgs-quick-token" value="Personal access token"/>
+				<html:input id="zgs-quick-token" type="password" flex="1" placeholder="Leave empty to reuse the saved token"/>
+			</hbox>
+			<hbox align="center" pack="start">
+				<button id="zgs-quick-run" label="Set up and open Obsidian" oncommand="ZoteroGitHubSyncPrefs.quickSetup()"/>
+			</hbox>
+			<html:div id="zgs-quick-status" class="zgs-status"/>
+			<html:div class="zgs-hint">Advanced transport, path and scheduling controls remain available below.</html:div>
+		</groupbox>
+
 		<groupbox>
 			<label><html:h2>Workspace transport</html:h2></label>
 			<hbox align="center">

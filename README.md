@@ -47,6 +47,16 @@ The fork retains the upstream extension ID, so installing it replaces the upstre
 
 Open **Zotero Settings → GitHub Sync** and choose a workspace directory, managed paths, Zotero mirror folder, reading-note folder, asset folder and Obsidian Vault.
 
+### New-computer quick setup
+
+For GitHub API transport, the top **Set up a new computer** panel only needs:
+
+1. An existing empty or previously downloaded local folder.
+2. The GitHub repository URL.
+3. A token with **Contents: Read and write** permission.
+
+Click **Set up and open Obsidian**. The plugin detects the default branch, configures the standard `content,zotero` layout, downloads GitHub before allowing any local export, restores Zotero and Better Notes identities, and opens `<workspace>/content` as the Vault. Git, Node.js and a local Quartz checkout are not required for this flow.
+
 ### System Git transport
 
 1. Clone the research repository normally.
