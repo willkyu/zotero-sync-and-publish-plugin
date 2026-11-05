@@ -68,6 +68,7 @@ window.ZoteroGitHubSyncPrefs = {
 		});
 
 		await this.refreshTokenStatus();
+		this.refreshObsidianConfirmation();
 		this.refreshMode();
 		this.refreshStatus();
 		// The status block shows the result of syncs started from anywhere, so
@@ -256,6 +257,29 @@ window.ZoteroGitHubSyncPrefs = {
 		if (!config.obsidianVaultPath) return;
 		let name = config.obsidianVaultName || PathUtils.filename(config.obsidianVaultPath);
 		Zotero.launchURL(`obsidian://open?vault=${encodeURIComponent(name)}`);
+	},
+
+
+	refreshObsidianConfirmation() {
+		let control = document.getElementById('zgs-obsidian-confirm');
+		let hint = document.getElementById('zgs-obsidian-confirm-help');
+		let version = this.plugin.Obsidian.majorVersion();
+		control.checked = this.plugin.Obsidian.askBeforeOpen();
+		hint.textContent = this.plugin.Obsidian.usesSchemePreferences()
+			? this.t('pref.obsidian.confirmHelpModern', 'Zotero %S: this controls only obsidian:// links. Changes take effect immediately.', version)
+			: this.t('pref.obsidian.confirmHelpLegacy', 'Zotero %S: this setting affects every external protocol, not only obsidian://. Changes take effect immediately.', version);
+	},
+
+
+	setObsidianConfirmation(ask) {
+		try {
+			this.plugin.Obsidian.setAskBeforeOpen(ask);
+			this.refreshObsidianConfirmation();
+		}
+		catch (e) {
+			Zotero.logError(e);
+			this.refreshObsidianConfirmation();
+		}
 	},
 
 

@@ -6,9 +6,37 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 const SRC = fileURLToPath(new URL('../src', import.meta.url));
 globalThis.ZoteroGitHubSync = { log(){}, warn(){}, logError: console.error, version: '0.2.0', getString: k => k };
-for (const f of ['utils.js', 'prefs.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'workspace-api.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
+for (const f of ['utils.js', 'prefs.js', 'obsidian.js', 'exporter.js', 'importer.js', 'planner.js', 'git.js', 'workspace-api.js', 'better-notes.js', 'workspace.js', 'sync.js']) vm.runInThisContext(readFileSync(`${SRC}/${f}`, 'utf8'));
 const U = ZoteroGitHubSync.Utils, E = ZoteroGitHubSync.Exporter, I = ZoteroGitHubSync.Importer;
-const G = ZoteroGitHubSync.LocalGit, API = ZoteroGitHubSync.WorkspaceAPITransport, BN = ZoteroGitHubSync.BetterNotes, W = ZoteroGitHubSync.Workspace;
+const G = ZoteroGitHubSync.LocalGit, API = ZoteroGitHubSync.WorkspaceAPITransport, BN = ZoteroGitHubSync.BetterNotes, W = ZoteroGitHubSync.Workspace, O = ZoteroGitHubSync.Obsidian;
+{
+  const originals = { Zotero: globalThis.Zotero, Services: globalThis.Services };
+  const values = new Map();
+  try {
+    globalThis.Services = { prefs: {
+      getBoolPref: (key, fallback) => values.has(key) ? values.get(key) : fallback,
+      setBoolPref: (key, value) => values.set(key, value),
+    } };
+    globalThis.Zotero = { version: '8.0.1' };
+    assert.equal(O.askBeforeOpen(), true, 'Zotero 8 asks by default when no scheme preference exists');
+    assert.deepEqual(O.setAskBeforeOpen(false), { ask: false, scope: 'obsidian', version: 8 });
+    assert.equal(values.get(O.EXTERNAL_PREF), true);
+    assert.equal(values.get(O.WARNING_PREF), false);
+    assert.equal(O.askBeforeOpen(), false, 'Zotero 8 reads the per-scheme warning preference');
+    assert.equal(values.has(O.LEGACY_PERMISSION_PREF), false, 'Zotero 8 does not change the legacy global permission');
+
+    values.clear();
+    globalThis.Zotero.version = '7.0.11';
+    assert.deepEqual(O.setAskBeforeOpen(false), { ask: false, scope: 'all-external-protocols', version: 7 });
+    assert.equal(values.get(O.LEGACY_PERMISSION_PREF), false);
+    assert.equal(values.has(O.WARNING_PREF), false, 'Zotero 7 uses only the legacy global permission');
+    assert.equal(O.askBeforeOpen(), false);
+  }
+  finally {
+    globalThis.Zotero = originals.Zotero;
+    globalThis.Services = originals.Services;
+  }
+}
 assert.deepEqual(ZoteroGitHubSync.Prefs.parseRepositoryURL('https://github.com/willkyu/research.git'), {
   owner: 'willkyu', repo: 'research', branch: '', apiURL: 'https://api.github.com',
 });

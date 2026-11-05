@@ -2,12 +2,12 @@
 
 ## 兼容性与安装
 
-本扩展名为 **Sync & Publish 1.5.0**，沿用上游插件 ID，因此安装后会直接升级原版 Zotero GitHub Sync 并保留已有设置，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
+本扩展名为 **Sync & Publish 1.6.0**，沿用上游插件 ID，因此安装后会直接升级原版 Zotero GitHub Sync 并保留已有设置，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
 
 - 插件只保留统一 Workspace 功能；远端传输可选择 System Git 或 GitHub API，两者同步相同的管理路径。
 - Workspace + Better Notes：按 Better Notes 3.3.3 的实际 API 开发；该版本要求 Zotero 8.0-beta.21–10.99.99。
 - 首版运行边界：Windows、macOS 桌面版；只有 Zotero 正在运行时才监听和自动同步。
-- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `sync-and-publish-1.5.0.xpi`。
+- 安装：Zotero → 工具 → 插件 → 齿轮 → 从文件安装，选择 `sync-and-publish-1.6.0.xpi`。
 
 ## 新电脑一键配置（推荐）
 
@@ -76,6 +76,7 @@
 
 可在 Zotero 文献、PDF 附件或原生笔记上右键选择 **Open Reading Note in Obsidian**，或按 `Ctrl+Alt+O`（macOS 为 `Cmd+Option+O`）：
 
+- 在 **Zotero 设置 → Sync & Publish** 中取消勾选“打开 Obsidian 前询问确认”，可取消协议弹窗，修改立即生效。Zotero 8 及以上修改 `network.protocol-handler.external.obsidian` 和 `network.protocol-handler.warn-external.obsidian`，仅影响 `obsidian://`；Zotero 7 及以下修改 `security.external_protocol_requires_permission`，会影响所有外部协议，设置页会显示此提示。
 - 仅在 Zotero 右侧面板中显示该笔记不会阻止打开。插件会先保存尚未落盘的编辑，再交给 Obsidian。
 - 无需、也不建议全局禁用 Zotero 的笔记编辑器。右侧笔记面板没有关闭按钮时，插件会先保存其中的输入，再协调 Markdown；Zotero 的条目通知会刷新仍显示的编辑器。只有双方确实都修改时才进入冲突状态。
 

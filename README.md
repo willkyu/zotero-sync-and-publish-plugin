@@ -50,6 +50,8 @@ The fork retains the upstream extension ID, so installing it replaces the upstre
 
 Open **Zotero Settings → Sync & Publish** and choose a workspace directory, managed paths, Zotero mirror folder, reading-note folder, asset folder and Obsidian Vault.
 
+The **Ask for confirmation before opening Obsidian** checkbox controls Zotero's actual external-protocol setting immediately. On Zotero 8 and later it affects only `obsidian://`; on Zotero 7 and earlier Zotero provides only a global setting, so the checkbox affects every external protocol and the pane displays that warning.
+
 ### New-computer quick setup
 
 For GitHub API transport, the top **Set up a new computer** panel only needs:

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] — 2026-11-05
+
+### Added
+
+- The settings pane can enable or disable confirmation before opening Obsidian. Zotero 8 and later use the scheme-specific `obsidian://` preferences, while Zotero 7 and earlier use the legacy global external-protocol permission with an explicit scope warning.
+
 ## [1.5.0] — 2026-11-04
 
 ### Added

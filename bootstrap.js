@@ -15,6 +15,7 @@ var SOURCE_FILES = [
 	'src/utils.js',
 	'src/files.js',
 	'src/prefs.js',
+	'src/obsidian.js',
 	'src/github.js',
 	'src/planner.js',
 	'src/state.js',

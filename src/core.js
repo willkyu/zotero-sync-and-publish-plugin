@@ -190,6 +190,8 @@ var ZoteroGitHubSync = {
 			'progress.layerCancelled': '%S cancelled. Saved files were kept.',
 			'error.notConfigured': 'Set your GitHub token, owner and repository in Settings → Sync & Publish first.',
 			'error.localWorkspaceNotConfigured': 'Configure the Local Workspace repository path first.',
+			'pref.obsidian.confirmHelpModern': 'Zotero %S: this controls only obsidian:// links. Changes take effect immediately.',
+			'pref.obsidian.confirmHelpLegacy': 'Zotero %S: this setting affects every external protocol, not only obsidian://. Changes take effect immediately.',
 			'note.moveConflict': '%S: the bound Markdown path is missing and the note identity matches multiple or already-bound files (%S); no deletion was applied.',
 			'error.noItems': 'No items selected.',
 			'error.running': 'A sync is already running.',

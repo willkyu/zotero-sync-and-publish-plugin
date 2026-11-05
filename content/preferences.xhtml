@@ -79,6 +79,8 @@
 				<label value="Vault name (optional)" data-zgs-i18n="pref.obsidian.name"/><html:input type="text" flex="1" preference="extensions.zotero-github-sync.obsidianVaultName"/>
 				<button label="Test open" data-zgs-i18n="pref.obsidian.test" oncommand="ZoteroGitHubSyncPrefs.testObsidian()"/>
 			</hbox>
+			<checkbox id="zgs-obsidian-confirm" label="Ask for confirmation before opening Obsidian" data-zgs-i18n="pref.obsidian.confirm" oncommand="ZoteroGitHubSyncPrefs.setObsidianConfirmation(this.checked)"/>
+			<html:div id="zgs-obsidian-confirm-help" class="zgs-hint"/>
 			<hbox align="center">
 				<label value="Default reading-note template" data-zgs-i18n="pref.template.label"/><html:input id="zgs-template-path" type="text" flex="1" preference="extensions.zotero-github-sync.noteTemplatePath"/>
 				<button label="Choose Markdown…" data-zgs-i18n="pref.template.choose" oncommand="ZoteroGitHubSyncPrefs.chooseTemplate()"/>
