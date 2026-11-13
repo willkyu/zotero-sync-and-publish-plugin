@@ -2,7 +2,7 @@
 
 ## 兼容性与安装
 
-本扩展名为 **Sync & Publish 1.6.1**，沿用上游插件 ID，因此安装后会直接升级原版 Zotero GitHub Sync 并保留已有设置，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
+本扩展名为 **Sync & Publish 1.6.2**，沿用上游插件 ID，因此安装后会直接升级原版 Zotero GitHub Sync 并保留已有设置，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
 
 - 插件只保留统一 Workspace 功能；远端传输可选择 System Git 或 GitHub API，两者同步相同的管理路径。
 - Workspace + Better Notes：按 Better Notes 3.3.3 的实际 API 开发；该版本要求 Zotero 8.0-beta.21–10.99.99。

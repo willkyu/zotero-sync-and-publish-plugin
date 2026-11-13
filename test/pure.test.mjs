@@ -543,6 +543,19 @@ assert.throws(() => BN.requestedCitationKey({ 'citation-key': 'bad key' }), /can
   );
   assert.equal(mergedTemplate.includes('{{title}}'), false, 'a raw prior template is replaced, not appended');
   assert.match(mergedTemplate, /# A Paper[\s\S]*## 原有笔记内容[\s\S]*Comment: imported metadata/);
+  assert.equal(
+    BN.normalizeTemplateYamlPlaceholders('authors:\n  "{{ authorsYaml }}":\ntags:\n  "{{tagsYaml}}":'),
+    'authors: {{authorsYaml}}\ntags: {{tagsYaml}}',
+    'nested YAML placeholders are converted into property values before rendering',
+  );
+  const persisted = BN.mergeTemplateFrontmatter(
+    '---\ntags: []\nparent: "A Paper"\n$libraryID: 1\n$itemKey: NOTE0001\n---\n# Exported body\n',
+    '---\ntitle: "A Paper"\nauthors: ["Ada"]\ntags: ["methods"]\nyear: "2026"\n---\n# Template body\n',
+  );
+  assert.match(persisted, /^---\ntitle: "A Paper"\nauthors: \["Ada"\]\ntags: \["methods"\]\nyear: "2026"/);
+  assert.match(persisted, /parent: "A Paper"[\s\S]*\$itemKey: NOTE0001/);
+  assert.equal(persisted.includes('tags: []'), false, 'template properties override Better Notes defaults');
+  assert.match(persisted, /---\n# Template body/);
   const combined = BN.withMarkdownBody('---\ntags: []\n$itemKey: NOTE0001\n---\nold body\n', '\n\n# Template\n\n- [ ] task\n');
   assert.equal(combined, '---\ntags: []\n$itemKey: NOTE0001\n---\n\n# Template\n\n- [ ] task\n');
 }

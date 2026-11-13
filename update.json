@@ -3,8 +3,8 @@
 		"zotero-github-sync@situkangsayur.github.io": {
 			"updates": [
 				{
-					"version": "1.6.1",
-					"update_link": "https://github.com/willkyu/zotero-sync-and-publish-plugin/releases/download/v1.6.1/sync-and-publish-1.6.1.xpi",
+					"version": "1.6.2",
+					"update_link": "https://github.com/willkyu/zotero-sync-and-publish-plugin/releases/download/v1.6.2/sync-and-publish-1.6.2.xpi",
 					"applications": {
 						"zotero": {
 							"strict_min_version": "6.999",

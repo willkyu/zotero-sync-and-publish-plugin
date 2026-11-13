@@ -280,6 +280,50 @@ ZoteroGitHubSync.BetterNotes = {
 		return match ? source.slice(match[0].length) : source;
 	},
 
+	normalizeTemplateYamlPlaceholders(markdown) {
+		// A common YAML spelling puts an array/string placeholder beneath its
+		// property as though it were a mapping key. Normalize that form before
+		// rendering: `authors:\n  "{{ authorsYaml }}":` becomes
+		// `authors: {{authorsYaml}}`.
+		return String(markdown || '').replace(
+			/^(\s*)([A-Za-z][A-Za-z0-9_-]*):\s*\n\1\s{2,}["']?\{\{\s*([A-Za-z][A-Za-z0-9_-]*Yaml)\s*\}\}["']?\s*:\s*$/gm,
+			(_match, indent, property, variable) => `${indent}${property}: {{${variable}}}`,
+		);
+	},
+
+	frontmatterParts(markdown) {
+		let source = String(markdown || '').replace(/\r\n/g, '\n');
+		let match = source.match(/^---\n([^]*?)\n---(?:\n|$)/);
+		return match ? { header: match[1], body: source.slice(match[0].length) }
+			: { header: '', body: source };
+	},
+
+	frontmatterProperties(header) {
+		let properties = [];
+		let current = null;
+		for (let line of String(header || '').split('\n')) {
+			let match = line.match(/^([A-Za-z$][A-Za-z0-9_$-]*):/);
+			if (match) {
+				current = { key: match[1], lines: [line] };
+				properties.push(current);
+			}
+			else if (current) current.lines.push(line);
+		}
+		return properties;
+	},
+
+	mergeTemplateFrontmatter(exported, templated) {
+		let template = this.frontmatterParts(templated);
+		if (!template.header) return this.withMarkdownBody(exported, template.body);
+		let templateProperties = this.frontmatterProperties(template.header);
+		let defined = new Set(templateProperties.map(property => property.key));
+		let generated = this.frontmatterProperties(this.frontmatterParts(exported).header)
+			.filter(property => !defined.has(property.key));
+		let header = [...templateProperties, ...generated]
+			.map(property => property.lines.join('\n')).join('\n');
+		return `---\n${header}\n---${template.body.startsWith('\n') ? '' : '\n'}${template.body}`;
+	},
+
 	mergeTemplateContent(rendered, existing, source) {
 		let existingBody = this.markdownBody(existing).trim();
 		// A note created through Zotero or Better Notes can already contain the
@@ -304,7 +348,7 @@ ZoteroGitHubSync.BetterNotes = {
 	async applyTemplate(note, parent, templatePath, existingContent = '') {
 		let source = await Zotero.File.getContentsAsync(templatePath, 'utf-8');
 		let rendered = this.mergeTemplateContent(
-			this.renderTemplate(source, parent, note), existingContent, source,
+			this.renderTemplate(this.normalizeTemplateYamlPlaceholders(source), parent, note), existingContent, source,
 		);
 		let suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 		let renderedPath = PathUtils.join(PathUtils.parent(templatePath), `.zqws-template-${note.key}-${suffix}.md`);
@@ -314,7 +358,7 @@ ZoteroGitHubSync.BetterNotes = {
 			let templateStatus = await this.api.sync.getMDStatus(renderedPath);
 			let imported = await this.api.$import.fromMD(renderedPath, { noteId: note.id, ignoreVersion: true });
 			if (!imported) throw new Error('Better Notes did not import the rendered reading-note template.');
-			return { meta: templateStatus.meta, content: templateStatus.content };
+			return { meta: templateStatus.meta, content: templateStatus.content, markdown: rendered };
 		}
 		finally {
 			await IOUtils.remove(tmpPath, { ignoreAbsent: true });
@@ -333,6 +377,14 @@ ZoteroGitHubSync.BetterNotes = {
 	async preserveTemplateBody(absolutePath, content) {
 		let exported = await Zotero.File.getContentsAsync(absolutePath, 'utf-8');
 		let combined = this.withMarkdownBody(exported, content);
+		let tmpPath = `${absolutePath}.zqws-tmp`;
+		await IOUtils.remove(tmpPath, { ignoreAbsent: true });
+		await IOUtils.write(absolutePath, new TextEncoder().encode(combined), { tmpPath });
+	},
+
+	async preserveTemplateMarkdown(absolutePath, markdown) {
+		let exported = await Zotero.File.getContentsAsync(absolutePath, 'utf-8');
+		let combined = this.mergeTemplateFrontmatter(exported, markdown);
 		let tmpPath = `${absolutePath}.zqws-tmp`;
 		await IOUtils.remove(tmpPath, { ignoreAbsent: true });
 		await IOUtils.write(absolutePath, new TextEncoder().encode(combined), { tmpPath });
@@ -361,7 +413,7 @@ ZoteroGitHubSync.BetterNotes = {
 			: await this.existingNoteMarkdown(note, PathUtils.parent(config.noteTemplatePath)));
 		let template = await this.applyTemplate(note, parent, config.noteTemplatePath, existing);
 		await this.exportNote(note, absolutePath, template.meta);
-		await this.preserveTemplateBody(absolutePath, template.content);
+		await this.preserveTemplateMarkdown(absolutePath, template.markdown);
 		let snapshot = await this.snapshot(note, absolutePath);
 		binding.md5 = snapshot.md5;
 		binding.noteMd5 = snapshot.noteMd5;
@@ -389,7 +441,7 @@ ZoteroGitHubSync.BetterNotes = {
 			else if (config.noteTemplatePath && await IOUtils.exists(config.noteTemplatePath)) {
 				let template = await this.applyTemplate(note, parent, config.noteTemplatePath);
 				await this.exportNote(note, absolutePath, template.meta);
-				await this.preserveTemplateBody(absolutePath, template.content);
+				await this.preserveTemplateMarkdown(absolutePath, template.markdown);
 			}
 			else {
 				await this.exportNote(note, absolutePath, existing?.meta || null);
@@ -811,7 +863,7 @@ ZoteroGitHubSync.BetterNotes = {
 			throw new Error(`A reading-note file already exists for the new note: ${filename}`);
 		}
 		await this.exportNote(note, absolutePath, template?.meta || null);
-		if (template) await this.preserveTemplateBody(absolutePath, template.content);
+		if (template) await this.preserveTemplateMarkdown(absolutePath, template.markdown);
 		let path = ZoteroGitHubSync.Workspace.relative(config, absolutePath);
 		let snapshot = await this.snapshot(note, absolutePath);
 		let binding = {
