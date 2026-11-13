@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] — 2026-11-13
+
+### Fixed
+
+- Newly bound reading notes now always begin with the configured reading-note template, even when Zotero or Better Notes has prefilled a child note. Existing prose is retained after the template.
+- Opening a bound note that still contains an unrendered copy of the configured template repairs it without duplicating the raw template text.
+
 ## [1.6.0] — 2026-11-05
 
 ### Added
