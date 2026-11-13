@@ -48,6 +48,13 @@ assert.deepEqual(ZoteroGitHubSync.Prefs.parseRepositoryURL('github.com/team/note
 });
 assert.equal(W.transportChangedCount({ uploaded: 4, deletedRemote: 1 }), 5, 'API result counts uploaded and deleted files');
 assert.equal(W.transportChangedCount({ changed: ['content/a.md', 'zotero/item.json'] }), 2, 'system Git result counts committed paths');
+assert.equal(W.isMachineLocalPath('content/.obsidian/workspace.json'), true, 'desktop Obsidian layout stays local');
+assert.equal(W.isMachineLocalPath('content/.obsidian/workspace-mobile.json'), true, 'mobile Obsidian layout stays local');
+assert.equal(W.isMachineLocalPath('content/.obsidian/app.json'), false, 'shared Obsidian settings remain managed');
+assert.deepEqual(W.machineLocalPathspecs({ managedPaths: ['content', 'zotero'] }), [
+  ':(exclude)content/.obsidian/workspace*.json',
+  ':(exclude)zotero/.obsidian/workspace*.json',
+], 'System Git excludes the same machine-local layouts');
 assert.deepEqual(
   [...API.parseGitIndex('100644 c1ae6de52f690855b90cb421456e9eaa6db7698d 0\tcontent/templates/paper.md\0' +
     '100644 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 2\tcontent/conflict.md\0')],
@@ -590,6 +597,11 @@ const bindings = W.validateBindings({ bindings: [
   { library: { type: 'user' }, parentKey: 'PARENT03', noteKey: 'NOTE0003', path: '../outside.md' },
 ] });
 assert.equal(bindings.length, 1, 'duplicate note identities and escaping paths are rejected');
+const mergedBindings = W.mergeBindings(
+  { bindings: [{ library: { type: 'user' }, parentKey: 'PARENT01', noteKey: 'NOTE0001', path: 'content/papers/local.md', updated: '2026-11-13T11:00:00.000Z' }] },
+  { bindings: [{ library: { type: 'user' }, parentKey: 'PARENT01', noteKey: 'NOTE0001', path: 'content/papers/remote.md', updated: '2026-11-13T10:00:00.000Z' }] },
+);
+assert.equal(mergedBindings[0].path, 'content/papers/local.md', 'newer generated binding wins during automatic merge');
 assert.equal(W.isMirrorPath('my-library/items/AB/ABCD1234.json'), true);
 assert.equal(W.isMirrorPath('my-library/notes/A/user.md'), false, 'generated Markdown is not a local mirror input');
 assert.equal(W.isMirrorPath('my-library/attachments/AB/ABCDEFGH/image.png'), true);

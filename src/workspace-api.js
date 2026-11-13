@@ -113,7 +113,48 @@ ZoteroGitHubSync.WorkspaceAPITransport = class WorkspaceAPITransport {
 	}
 
 	isManaged(path) {
-		return this.config.managedPaths.some(root => path === root || path.startsWith(`${root}/`));
+		return !ZoteroGitHubSync.Workspace.isMachineLocalPath(path)
+			&& this.config.managedPaths.some(root => path === root || path.startsWith(`${root}/`));
+	}
+
+	async resolveGeneratedState(localScan) {
+		let paths = ZoteroGitHubSync.Workspace.generatedStatePaths(this.config);
+		let resolved = 0;
+		for (let [kind, path] of Object.entries(paths)) {
+			let localHash = localScan.hashes.get(path);
+			let remoteHash = this.remote.get(path);
+			let baseHash = this.sessionBase.get(path);
+			// Only override the generic conflict rule when both sides changed from
+			// a known common base. Unknown ancestry remains a real user conflict.
+			if (!localHash || !remoteHash || !baseHash
+				|| localHash === remoteHash || localHash === baseHash || remoteHash === baseHash) continue;
+
+			if (kind === 'bindings') {
+				let entry = this.remoteEntries.get(path);
+				let target = localScan.files.get(path)?.absolute;
+				if (!entry || !target) continue;
+				try {
+					let remote = JSON.parse(ZoteroGitHubSync.Utils.textDecoder.decode(await this.client.getBlobBytes(entry.sha)));
+					let local = JSON.parse(ZoteroGitHubSync.Utils.textDecoder.decode(await IOUtils.read(target)));
+					let bindings = ZoteroGitHubSync.Workspace.mergeBindings(local, remote);
+					await ZoteroGitHubSync.Workspace.saveBindings(this.config, bindings);
+					let { hash } = await ZoteroGitHubSync.Files.hashFile(target, 'git');
+					localScan.hashes.set(path, hash);
+				}
+				catch (e) {
+					ZoteroGitHubSync.log(`Could not merge generated bindings at ${path}: ${e.message || e}`);
+					continue;
+				}
+			}
+
+			// manifest.json is regenerated from the local Zotero database and
+			// bindings.json has just been merged. Treat the remote version as the
+			// acknowledged base so the reconciled local state is published.
+			this.sessionBase.set(path, remoteHash);
+			this.conflicts.delete(path);
+			resolved++;
+		}
+		return resolved;
 	}
 
 	statePath() {
@@ -209,6 +250,7 @@ ZoteroGitHubSync.WorkspaceAPITransport = class WorkspaceAPITransport {
 		this.sessionBase = new Map(this.base || []);
 		let localScan = await ZoteroGitHubSync.Workspace.scanManaged(this.config);
 		await this.inferGitIndexBase(localScan.hashes);
+		await this.resolveGeneratedState(localScan);
 		let plan = WorkspaceAPITransport.plan({ local: localScan.hashes, remote: this.remote, base: this.sessionBase });
 		this.conflicts = new Set(plan.conflicts);
 
@@ -258,6 +300,7 @@ ZoteroGitHubSync.WorkspaceAPITransport = class WorkspaceAPITransport {
 
 	async finish(trigger) {
 		let scan = await ZoteroGitHubSync.Workspace.scanManaged(this.config);
+		await this.resolveGeneratedState(scan);
 		let plan = WorkspaceAPITransport.plan({ local: scan.hashes, remote: this.remote, base: this.sessionBase });
 		for (let path of plan.conflicts) this.conflicts.add(path);
 		for (let path of [...plan.download, ...plan.deleteLocal]) this.conflicts.add(path);

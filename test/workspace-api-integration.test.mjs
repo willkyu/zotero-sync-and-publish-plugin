@@ -95,6 +95,13 @@ globalThis.ZoteroGitHubSync = {
   },
   Workspace: {
     resolve(config, relative) { return join(config.workspacePath, ...relative.split('/')); },
+    isMachineLocalPath(path) { return /(?:^|\/)\.obsidian\/workspace(?:-mobile)?\.json$/i.test(path); },
+    generatedStatePaths(config) {
+      return {
+        bindings: `${config.basePath || 'zotero'}/.zotero-sync/bindings.json`,
+        manifest: `${config.basePath || 'zotero'}/.zotero-sync/manifest.json`,
+      };
+    },
     async writeBytesIfChanged(path, bytes) { await mkdir(dirname(path), { recursive: true }); await writeFile(path, bytes); },
     async scanManaged(config) {
       const files = new Map(), hashes = new Map();

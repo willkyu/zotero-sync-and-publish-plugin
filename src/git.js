@@ -200,7 +200,7 @@ ZoteroGitHubSync.LocalGit = class LocalGit {
 		return { status: 'fast-forwarded', behind };
 	}
 
-	async commitAndPush(paths, message, { push = true } = {}) {
+	async commitAndPush(paths, message, { push = true, ignoredPathspecs = [] } = {}) {
 		if (!paths?.length) return { status: 'blocked', reason: 'No managed Git paths are configured.' };
 		let operation = await this.hasOperationInProgress();
 		if (operation) return { status: 'blocked', reason: `Git operation in progress: ${operation}` };
@@ -208,7 +208,7 @@ ZoteroGitHubSync.LocalGit = class LocalGit {
 		if (staged.length) {
 			return { status: 'staged-pending', reason: `Existing staged files: ${staged.join(', ')}` };
 		}
-		await this.run(['add', '-A', '--', ...paths]);
+		await this.run(['add', '-A', '--', ...paths, ...ignoredPathspecs]);
 		let changed = await this.staged();
 		if (!changed.length) return { status: 'up-to-date', changed: [] };
 		let inside = path => paths.some(prefix => path === prefix || path.startsWith(`${prefix}/`));

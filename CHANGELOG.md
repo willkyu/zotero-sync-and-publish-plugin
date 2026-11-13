@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4] — 2026-11-13
+
+### Fixed
+
+- GitHub API workspace sync now excludes Obsidian's machine-local workspace layout and automatically reconciles generated Zotero binding and manifest metadata instead of reporting false workspace conflicts.
+
 ## [1.6.3] — 2026-11-13
 
 ### Fixed
