@@ -2,44 +2,41 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing release tag to build and publish (for example v1.6.1)"
-        required: true
-        type: string
 
 permissions:
   contents: write
-
-env:
-  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.RELEASE_TAG }}
 
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Check that the tag matches manifest.json
+      - name: Read release version
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           MANIFEST_VERSION="$(node -p "require('./manifest.json').version")"
-          TAG_VERSION="${RELEASE_TAG#v}"
-          if [[ "$RELEASE_TAG" != v* ]]; then
-            echo "Release tag must start with v" >&2
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          UPDATE_VERSION="$(node -p "require('./update.json').addons['zotero-github-sync@situkangsayur.github.io'].updates[0].version")"
+          if [ "$MANIFEST_VERSION" != "$PACKAGE_VERSION" ] || [ "$MANIFEST_VERSION" != "$UPDATE_VERSION" ]; then
+            echo "manifest.json, package.json and update.json versions must match" >&2
             exit 1
           fi
-          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
-            echo "manifest.json is $MANIFEST_VERSION but the tag is $TAG_VERSION" >&2
-            exit 1
+          TAG="v$MANIFEST_VERSION"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Test
@@ -61,9 +58,11 @@ jobs:
             build/SHA256SUMS.txt
 
       - name: Release
+        if: steps.release.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
+          tag_name: ${{ steps.release.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: |
             build/*.xpi
             build/SHA256SUMS.txt

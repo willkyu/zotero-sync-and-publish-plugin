@@ -245,20 +245,18 @@ and `update.json` together when a new Zotero major version ships.
 ## Releasing
 
 1. Bump the version in **`manifest.json`**, `package.json` and `update.json` — all three.
-   The CI job fails the build if the tag and `manifest.json` disagree.
+   The Release workflow fails if they disagree.
 2. Point `update_link` in `update.json` at the release asset for the new version.
 3. Add a `CHANGELOG.md` entry.
-4. Commit, then tag and push:
+4. Commit and push `main`:
 
    ```bash
-   git tag v0.2.0
-   git push origin main --tags
+   git push origin main
    ```
 
 `.github/workflows/release.yml` builds the XPI and attaches it, along with `update.json`,
-to a GitHub release. Zotero's auto-update reads `update.json` from `main`, so users are
-offered the new version once both are in place.
-
-If a tag was pushed while GitHub Actions was disabled, enable Actions for the repository,
-open **Actions → Release → Run workflow**, and enter the existing tag (for example
-`v1.6.1`). The workflow checks out that tag and creates the missing release assets.
+to a GitHub release named `v<version>`. The version is read from the three version files;
+the workflow creates a missing release (including for a tag that was pushed earlier) but
+does not overwrite an existing release. Zotero's auto-update reads `update.json` from
+`main`, so users are offered the new version once both are in place. **Run workflow** uses
+the same version fields and can recover a release after Actions is enabled.
