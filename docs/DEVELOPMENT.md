@@ -258,3 +258,7 @@ and `update.json` together when a new Zotero major version ships.
 `.github/workflows/release.yml` builds the XPI and attaches it, along with `update.json`,
 to a GitHub release. Zotero's auto-update reads `update.json` from `main`, so users are
 offered the new version once both are in place.
+
+If a tag was pushed while GitHub Actions was disabled, enable Actions for the repository,
+open **Actions → Release → Run workflow**, and enter the existing tag (for example
+`v1.6.1`). The workflow checks out that tag and creates the missing release assets.
