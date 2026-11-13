@@ -181,6 +181,20 @@ ZoteroGitHubSync.BetterNotes = {
 		return { changed: true };
 	},
 
+	formatObsidianTag(tag) {
+		return String(tag || '').trim()
+			// Obsidian tags may use Unicode letters/numbers, `_`, `-`, and `/`.
+			// Zotero tags may additionally contain spaces, commas, #, and many
+			// other characters, so turn invalid runs into one readable separator.
+			.replace(/[^\p{L}\p{N}_/-]+/gu, '-')
+			.replace(/-+/g, '-').replace(/\/{2,}/g, '/')
+			.replace(/^[-/]+|[-/]+$/g, '');
+	},
+
+	formatObsidianTags(tags) {
+		return [...new Set((tags || []).map(tag => this.formatObsidianTag(tag)).filter(Boolean))];
+	},
+
 	templateValues(parent, note) {
 		let creators = parent.getCreators?.() || [];
 		let creatorNames = creators.map(creator => creator.name
@@ -191,7 +205,8 @@ ZoteroGitHubSync.BetterNotes = {
 		}).map(creator => creator.name
 			|| [creator.firstName, creator.lastName].filter(Boolean).join(' ')).filter(Boolean);
 		if (!authorNames.length) authorNames = creatorNames;
-		let tags = (parent.getTags?.() || []).map(tag => tag.tag).filter(Boolean);
+		let zoteroTags = (parent.getTags?.() || []).map(tag => tag.tag).filter(Boolean);
+		let tags = this.formatObsidianTags(zoteroTags);
 		let collections = (parent.getCollections?.() || []).map(id => {
 			try { return Zotero.Collections.get(id)?.name || ''; }
 			catch (e) { return ''; }
@@ -218,6 +233,8 @@ ZoteroGitHubSync.BetterNotes = {
 			authorsYaml: JSON.stringify(authorNames),
 			tags: tags.join(', '),
 			tagsYaml: JSON.stringify(tags),
+			zoteroTags: zoteroTags.join(', '),
+			zoteroTagsYaml: JSON.stringify(zoteroTags),
 			collections: collections.join('; '),
 			collectionsYaml: JSON.stringify(collections),
 			date: bibliographicDate,

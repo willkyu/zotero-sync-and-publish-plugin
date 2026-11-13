@@ -535,6 +535,11 @@ assert.throws(() => BN.requestedCitationKey({ 'citation-key': 'bad key' }), /can
   assert.throws(() => BN.renderTemplate('{{date:MMMM D}}', parent, { key: 'NOTE0001' }), /Unsupported reading-note date format/);
   assert.equal(BN.noteIsEmpty({ getNote: () => '<div data-schema-version="9"><p><br></p></div>' }), true);
   assert.equal(BN.noteIsEmpty({ getNote: () => '<div><p>Text</p></div>' }), false);
+  assert.deepEqual(
+    BN.formatObsidianTags(['wearable sensors', '#ML', '漫画／空间', 'A, B', '  ']),
+    ['wearable-sensors', 'ML', '漫画-空间', 'A-B'],
+    'Zotero tags are converted to legal, stable Obsidian tag names',
+  );
   const rawTemplate = '---\ntitle: "{{title}}"\n---\n# {{title}}\n\n## 研究问题\n';
   const mergedTemplate = BN.mergeTemplateContent(
     '---\ntitle: "A Paper"\n---\n# A Paper\n\n## 研究问题\n',

@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3] — 2026-11-13
+
+### Fixed
+
+- Zotero tags used in reading-note templates are now normalized to valid Obsidian tag names. Original Zotero tag values remain available through `zoteroTags` and `zoteroTagsYaml`.
+
 ## [1.6.2] — 2026-11-13
 
 ### Fixed

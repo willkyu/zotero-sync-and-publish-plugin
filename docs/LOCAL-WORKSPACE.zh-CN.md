@@ -2,7 +2,7 @@
 
 ## 兼容性与安装
 
-本扩展名为 **Sync & Publish 1.6.2**，沿用上游插件 ID，因此安装后会直接升级原版 Zotero GitHub Sync 并保留已有设置，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
+本扩展名为 **Sync & Publish 1.6.3**，沿用上游插件 ID，因此安装后会直接升级原版 Zotero GitHub Sync 并保留已有设置，避免两个插件同时写同一仓库。更新源已改为本 fork，上游自动更新不会覆盖本扩展。
 
 - 插件只保留统一 Workspace 功能；远端传输可选择 System Git 或 GitHub API，两者同步相同的管理路径。
 - Workspace + Better Notes：按 Better Notes 3.3.3 的实际 API 开发；该版本要求 Zotero 8.0-beta.21–10.99.99。
@@ -105,13 +105,14 @@
 | `{{authorsYaml}}`、`{{creatorsYaml}}` | 可直接放入 YAML 的 JSON 数组 |
 | `{{date}}`、`{{year}}` | 文献日期、从文献日期提取的年份；另有 `dateYaml` |
 | `{{today}}`、`{{now}}` | 创建当天 `YYYY-MM-DD`、ISO 时间；也支持 Obsidian 风格的 `{{date:YYYY-MM-DD}}`，可用 `YYYY YY MM DD HH mm ss` |
-| `{{tags}}`、`{{collections}}` | 标签、分类列表的文本形式 |
-| `{{tagsYaml}}`、`{{collectionsYaml}}` | 可直接放入 YAML 的 JSON 数组 |
+| `{{tags}}`、`{{collections}}` | Obsidian 安全标签、分类列表的文本形式 |
+| `{{tagsYaml}}`、`{{collectionsYaml}}` | 可直接放入 YAML 的 JSON 数组；`tagsYaml` 已转为 Obsidian 合法标签名 |
+| `{{zoteroTags}}`、`{{zoteroTagsYaml}}` | 未格式化的 Zotero 原始标签文本、JSON 数组 |
 | `{{itemType}}`、`{{itemKey}}`、`{{noteKey}}` | Zotero 类型、父文献 key、新子笔记 key |
 | `{{citationKey}}`、`{{zoteroURI}}` | Better BibTeX citation key（若存在）、Zotero URI；另有 `citationKeyYaml` |
 | 任意有效 Zotero 字段名 | 例如 `{{DOI}}`、`{{url}}`、`{{abstractNote}}`、`{{publicationTitle}}`、`{{volume}}`、`{{issue}}`、`{{pages}}` |
 
-变量值按 Markdown 原文插入；在 YAML 中建议给普通文本加引号，数组使用 `*Yaml` 变量。未知变量会停止创建并明确报错，不会原样写入笔记。示例：
+变量值按 Markdown 原文插入；在 YAML 中建议给普通文本加引号，数组使用 `*Yaml` 变量。`tags` 和 `tagsYaml` 会将空格、逗号、`#` 等 Obsidian 不允许的字符格式化为 `-`；若需要保留 Zotero 原始标签，使用 `zoteroTags` 或 `zoteroTagsYaml`。未知变量会停止创建并明确报错，不会原样写入笔记。示例：
 
 ```markdown
 ---

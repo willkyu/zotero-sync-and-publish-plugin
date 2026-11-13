@@ -1,6 +1,6 @@
 {
 	"name": "zotero-sync-and-publish-plugin",
-	"version": "1.6.2",
+	"version": "1.6.3",
 	"private": true,
 	"description": "Coordinate a Zotero, Better Notes, Obsidian and Quartz workspace through system Git or the GitHub API",
 	"type": "module",
