@@ -535,6 +535,14 @@ assert.throws(() => BN.requestedCitationKey({ 'citation-key': 'bad key' }), /can
   assert.throws(() => BN.renderTemplate('{{date:MMMM D}}', parent, { key: 'NOTE0001' }), /Unsupported reading-note date format/);
   assert.equal(BN.noteIsEmpty({ getNote: () => '<div data-schema-version="9"><p><br></p></div>' }), true);
   assert.equal(BN.noteIsEmpty({ getNote: () => '<div><p>Text</p></div>' }), false);
+  const rawTemplate = '---\ntitle: "{{title}}"\n---\n# {{title}}\n\n## 研究问题\n';
+  const mergedTemplate = BN.mergeTemplateContent(
+    '---\ntitle: "A Paper"\n---\n# A Paper\n\n## 研究问题\n',
+    `Comment: imported metadata\n${rawTemplate}`,
+    rawTemplate,
+  );
+  assert.equal(mergedTemplate.includes('{{title}}'), false, 'a raw prior template is replaced, not appended');
+  assert.match(mergedTemplate, /# A Paper[\s\S]*## 原有笔记内容[\s\S]*Comment: imported metadata/);
   const combined = BN.withMarkdownBody('---\ntags: []\n$itemKey: NOTE0001\n---\nold body\n', '\n\n# Template\n\n- [ ] task\n');
   assert.equal(combined, '---\ntags: []\n$itemKey: NOTE0001\n---\n\n# Template\n\n- [ ] task\n');
 }

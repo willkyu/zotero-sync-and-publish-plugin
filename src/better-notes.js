@@ -274,9 +274,38 @@ ZoteroGitHubSync.BetterNotes = {
 		return !text;
 	},
 
-	async applyTemplate(note, parent, templatePath) {
+	markdownBody(markdown) {
+		let source = String(markdown || '').replace(/\r\n/g, '\n');
+		let match = source.match(/^---\n[^]*?\n---(?:\n|$)/);
+		return match ? source.slice(match[0].length) : source;
+	},
+
+	mergeTemplateContent(rendered, existing, source) {
+		let existingBody = this.markdownBody(existing).trim();
+		// A note created through Zotero or Better Notes can already contain the
+		// configured Markdown template verbatim. It is not user prose, so remove
+		// that stale copy before appending the remaining existing content.
+		let rawTemplate = String(source || '').replace(/\r\n/g, '\n').trim();
+		if (rawTemplate) existingBody = existingBody.replace(rawTemplate, '').trim();
+		let rawTemplateBody = this.markdownBody(source).trim();
+		if (rawTemplateBody) existingBody = existingBody.replace(rawTemplateBody, '').trim();
+		if (!existingBody) return String(rendered || '');
+		return `${String(rendered || '').replace(/\s+$/, '')}\n\n## 原有笔记内容\n\n${existingBody}\n`;
+	},
+
+	async existingNoteMarkdown(note, directory) {
+		return this.api.convert.note2md(note, directory, {
+			keepNoteLink: false,
+			withYAMLHeader: false,
+			skipSavingImages: true,
+		});
+	},
+
+	async applyTemplate(note, parent, templatePath, existingContent = '') {
 		let source = await Zotero.File.getContentsAsync(templatePath, 'utf-8');
-		let rendered = this.renderTemplate(source, parent, note);
+		let rendered = this.mergeTemplateContent(
+			this.renderTemplate(source, parent, note), existingContent, source,
+		);
 		let suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 		let renderedPath = PathUtils.join(PathUtils.parent(templatePath), `.zqws-template-${note.key}-${suffix}.md`);
 		let tmpPath = `${renderedPath}.tmp`;
@@ -309,15 +338,28 @@ ZoteroGitHubSync.BetterNotes = {
 		await IOUtils.write(absolutePath, new TextEncoder().encode(combined), { tmpPath });
 	},
 
-	async repairEmptyTemplateBinding(note, parent, binding, config) {
-		if (!this.noteIsEmpty(note) || !config.noteTemplatePath
-			|| !await IOUtils.exists(config.noteTemplatePath)) return false;
+	async containsRawTemplate(markdown, templatePath) {
+		let source = String(await Zotero.File.getContentsAsync(templatePath, 'utf-8') || '')
+			.replace(/\r\n/g, '\n').trim();
+		let candidate = String(markdown || '').replace(/\r\n/g, '\n');
+		return !!source && (candidate.includes(source)
+			|| candidate.includes(this.markdownBody(source).trim()));
+	},
+
+	async repairTemplateBinding(note, parent, binding, config) {
+		if (!config.noteTemplatePath || !await IOUtils.exists(config.noteTemplatePath)) return false;
 		let absolutePath = ZoteroGitHubSync.Workspace.resolve(config, binding.path);
+		let status = null;
 		if (await IOUtils.exists(absolutePath)) {
-			let status = await this.api.sync.getMDStatus(absolutePath);
-			if (String(status.content || '').trim()) return false;
+			status = await this.api.sync.getMDStatus(absolutePath);
 		}
-		let template = await this.applyTemplate(note, parent, config.noteTemplatePath);
+		let empty = this.noteIsEmpty(note);
+		let rawTemplate = status && await this.containsRawTemplate(status.content, config.noteTemplatePath);
+		if (!empty && !rawTemplate) return false;
+		if (empty && String(status?.content || '').trim()) return false;
+		let existing = status?.content || (empty ? ''
+			: await this.existingNoteMarkdown(note, PathUtils.parent(config.noteTemplatePath)));
+		let template = await this.applyTemplate(note, parent, config.noteTemplatePath, existing);
 		await this.exportNote(note, absolutePath, template.meta);
 		await this.preserveTemplateBody(absolutePath, template.content);
 		let snapshot = await this.snapshot(note, absolutePath);
@@ -851,9 +893,15 @@ ZoteroGitHubSync.BetterNotes = {
 				await note.saveTx();
 				createdNote = true;
 			}
-			if (this.noteIsEmpty(note) && config.noteTemplatePath && await IOUtils.exists(config.noteTemplatePath)) {
+			if (config.noteTemplatePath && await IOUtils.exists(config.noteTemplatePath)) {
 				try {
-					template = await this.applyTemplate(note, parent, config.noteTemplatePath);
+					// An unbound child note is being adopted as this plugin's reading
+					// note. Always build its initial structure from the configured
+					// template. Preserve real pre-existing prose after the template,
+					// rather than treating any non-empty automatic note as complete.
+					let existing = this.noteIsEmpty(note) ? ''
+						: await this.existingNoteMarkdown(note, PathUtils.parent(config.noteTemplatePath));
+					template = await this.applyTemplate(note, parent, config.noteTemplatePath, existing);
 				}
 				catch (e) {
 					if (createdNote) {
@@ -873,7 +921,7 @@ ZoteroGitHubSync.BetterNotes = {
 				note = await this.recreateDeletedBinding(parent, binding, config);
 				await data.save();
 			}
-			else if (await this.repairEmptyTemplateBinding(note, parent, binding, config)) {
+			else if (await this.repairTemplateBinding(note, parent, binding, config)) {
 				await data.save();
 			}
 		}
